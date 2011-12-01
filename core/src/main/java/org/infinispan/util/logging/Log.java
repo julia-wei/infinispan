@@ -787,7 +787,7 @@ public interface Log extends BasicLogger {
 
     @LogMessage(level = WARN)
     @Message(value = "Error committing cache view %1$d for cache %2$s", id = 169)
-    void cacheViewCommitFailure(@Cause Exception e, int committedViewId, String cacheName);
+    void cacheViewCommitFailure(@Cause Throwable t, int committedViewId, String cacheName);
 
     @LogMessage(level = INFO)
     @Message(value = "Our last committed view (%s) is not the same as the coordinator's last committed view (%s). This is normal during a merge", id = 170)
@@ -796,6 +796,10 @@ public interface Log extends BasicLogger {
     @LogMessage(level = INFO)
     @Message(value = "Strict peer-to-peer is enabled but the JGroups channel was started externally - this is very likely to result in RPC timeout errors on startup", id = 171)
     void warnStrictPeerToPeerWithInjectedChannel();
+
+    @LogMessage(level = ERROR)
+    @Message(value = "Failed to prepare view %s for cache  %s, rolling back to view %s", id = 172)
+    void cacheViewPrepareFailure(@Cause Throwable e, CacheView newView, String cacheName, CacheView committedView);
 
     @LogMessage(level = ERROR)
     @Message(value = "Could not locate key class %s", id = 14001)
@@ -808,4 +812,5 @@ public interface Log extends BasicLogger {
     @LogMessage(level = INFO)
     @Message(value = "Registering Query interceptor", id = 14003)
     void registeringQueryInterceptor();
+
 }
