@@ -41,6 +41,7 @@
          <groupId>${project.groupId}</groupId>
          <artifactId>infinispan-core</artifactId>
          <version>${project.version}</version>
+         <scope>provided</scope>
       </dependency>
 
       <dependency>
@@ -58,6 +59,12 @@
          <groupId>org.apache.lucene</groupId>
          <artifactId>lucene-core</artifactId>
          <version>${version.lucene}</version>
+      </dependency>
+
+      <dependency>
+         <groupId>org.jboss.logging</groupId>
+         <artifactId>jboss-logging</artifactId>
+         <version>${version.jboss.logging}</version>
       </dependency>
 
       <dependency>
