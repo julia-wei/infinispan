@@ -26,11 +26,10 @@ import org.infinispan.CacheException;
 import org.infinispan.commons.hash.Hash;
 import org.infinispan.commons.hash.MurmurHash3;
 import org.infinispan.config.FluentConfiguration.*;
+import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.DefaultDataContainer;
 import org.infinispan.distribution.ch.ConsistentHash;
-import org.infinispan.distribution.ch.DefaultHashSeed;
-import org.infinispan.distribution.ch.HashSeed;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.TopologyAwareConsistentHash;
 import org.infinispan.distribution.group.Grouper;
@@ -159,6 +158,9 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
    @XmlElement
    QueryConfigurationBean indexing = new QueryConfigurationBean().setConfiguration(this);
+
+   @XmlElement
+   VersioningConfigurationBean versioning = new VersioningConfigurationBean().setConfiguration(this);
 
    @SuppressWarnings("unused")
    @Start(priority = 1)
@@ -651,12 +653,33 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       this.eviction.setMaxEntries(evictionMaxEntries);
    }
 
+   @Deprecated
+   public void setVersioningScheme(VersioningScheme versioningScheme) {
+      this.versioning.setVersioningScheme(versioningScheme);
+   }
+
+   @Deprecated
+   public void setEnableVersioning(boolean enabled) {
+      this.versioning.setEnabled(enabled);
+   }
+
    /**
     * Expiration lifespan, in milliseconds
     */
    public long getExpirationLifespan() {
       return expiration.lifespan;
    }
+
+   @Deprecated
+   public VersioningScheme getVersioningScheme() {
+      return this.versioning.versioningScheme;
+   }
+
+   @Deprecated
+   public boolean isEnableVersioning() {
+      return this.versioning.enabled;
+   }
+
 
 
    /**
@@ -1372,14 +1395,6 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
    public String getHashFunctionClass() {
       return clustering.hash.hashFunctionClass;
-   }
-
-   public String getHashSeedClass() {
-      return clustering.hash.hashSeedClass;
-   }
-
-   public HashSeed getHashSeed() {
-      return clustering.hash.hashSeed;
    }
 
    public int getNumOwners() {
@@ -3419,11 +3434,6 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       @ConfigurationDocRef(bean = Configuration.class, targetElement = "setHashFunctionClass")
       protected String hashFunctionClass = MurmurHash3.class.getName();
 
-      @ConfigurationDocRef(bean = HashConfig.class, targetElement = "hashSeed")
-      protected String hashSeedClass = DefaultHashSeed.class.getName();
-
-      protected HashSeed hashSeed;
-
       @ConfigurationDocRef(bean = Configuration.class, targetElement = "setNumOwners")
       protected Integer numOwners = 2;
 
@@ -3485,18 +3495,6 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       @Override
       public HashConfig hashFunctionClass(Class<? extends Hash> hashFunctionClass) {
          setHashFunctionClass(hashFunctionClass.getName());
-         return this;
-      }
-
-      @XmlAttribute
-      public String getHashSeedClass() {
-         return hashSeedClass;
-      }
-
-      @Override
-      public HashConfig hashSeed(HashSeed hashSeed) {
-         testImmutability("hashSeed");
-         this.hashSeed = hashSeed;
          return this;
       }
 
@@ -4078,6 +4076,95 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
       private void updateTransactionMode() {
          if (enabled && config != null) config.transaction.transactionMode(TransactionMode.TRANSACTIONAL);
+      }
+   }
+
+   @XmlAccessorType(XmlAccessType.PROPERTY)
+   @ConfigurationDoc(name = "versioning")
+   @Deprecated
+   public static class VersioningConfigurationBean extends AbstractFluentConfigurationBean implements VersioningConfig {
+      private static final long serialVersionUID = -123456789001234L;
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setEnableVersioning")
+      protected Boolean enabled = false;
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setVersioningScheme")
+      protected VersioningScheme versioningScheme = VersioningScheme.NONE;
+
+      public void accept(ConfigurationBeanVisitor v) {
+         v.visitVersioningConfigurationBean(this);
+      }
+
+      @XmlAttribute
+      public Boolean isEnabled() {
+         return enabled;
+      }
+
+      /**
+       * @deprecated The visibility of this will be reduced
+       */
+      @Deprecated
+      public void setEnabled(Boolean enabled) {
+         testImmutability("enabled");
+         this.enabled = enabled;
+      }
+
+      @XmlAttribute
+      public VersioningScheme getVersioningScheme() {
+         return versioningScheme;
+      }
+
+      /**
+       * @deprecated The visibility of this will be reduced, use {@link #versioningScheme(org.infinispan.configuration.cache.VersioningScheme)}
+       */
+      @Deprecated
+      public void setVersioningScheme(VersioningScheme versioningScheme) {
+         testImmutability("versioningScheme");
+         this.versioningScheme = versioningScheme;
+      }
+
+      @Override
+      public VersioningConfigurationBean versioningScheme(VersioningScheme versioningScheme) {
+         setVersioningScheme(versioningScheme);
+         return this;
+      }
+
+      @Override
+      protected VersioningConfigurationBean setConfiguration(Configuration config) {
+         super.setConfiguration(config);
+         return this;
+      }
+
+      @Override
+      public VersioningConfigurationBean disable() {
+         setEnabled(false);
+         return this;
+      }
+
+      @Override
+      public VersioningConfigurationBean enable() {
+         setEnabled(true);
+         return this;
+      }
+
+      @Override
+      public boolean equals(Object o) {
+         if (this == o) return true;
+         if (!(o instanceof VersioningConfigurationBean)) return false;
+
+         VersioningConfigurationBean that = (VersioningConfigurationBean) o;
+
+         if (!Util.safeEquals(enabled, that.enabled)) return false;
+         if (!Util.safeEquals(versioningScheme, that.versioningScheme)) return false;
+
+         return true;
+      }
+
+      @Override
+      public int hashCode() {
+         int result = enabled != null ? enabled.hashCode() : 0;
+         result = 31 * result + (versioningScheme != null ? versioningScheme.hashCode() : 0);
+         return result;
       }
    }
 

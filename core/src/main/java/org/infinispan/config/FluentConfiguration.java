@@ -24,9 +24,9 @@
 package org.infinispan.config;
 
 import org.infinispan.commons.hash.Hash;
+import org.infinispan.configuration.cache.VersioningScheme;
 import org.infinispan.container.DataContainer;
 import org.infinispan.distribution.ch.ConsistentHash;
-import org.infinispan.distribution.ch.HashSeed;
 import org.infinispan.distribution.group.Group;
 import org.infinispan.distribution.group.Grouper;
 import org.infinispan.eviction.EvictionStrategy;
@@ -662,18 +662,6 @@ public class FluentConfiguration extends AbstractFluentConfigurationBean {
       HashConfig hashFunctionClass(Class<? extends Hash> hashFunctionClass);
 
       /**
-       * A hash seed implementation which allows seed address to for consistent
-       * hash calculation to be configured. This is particularly useful when
-       * Infinispan is accessed remotely and clients are to calculate hash ids.
-       * Since clients are only aware of server endpoints, implementations of
-       * {@link HashSeed} can seed based on this information instead of the
-       * traditional cluster address.
-       *
-       * @param hashSeed
-       */
-      HashConfig hashSeed(HashSeed hashSeed);
-
-      /**
        * Number of cluster-wide replicas for each cache entry.
        *
        * @param numOwners
@@ -790,6 +778,13 @@ public class FluentConfiguration extends AbstractFluentConfigurationBean {
       IndexingConfig addProperty(String key, String value);
    }
 
+   @Deprecated
+   public static interface VersioningConfig extends FluentTypes {
+      VersioningConfig enable();
+      VersioningConfig disable();
+      VersioningConfig versioningScheme(VersioningScheme scheme);
+   }
+
    @Deprecated public static interface DataContainerConfig extends FluentTypes {
 
       DataContainerConfig dataContainerClass(Class<? extends DataContainer> dataContainerClass);
@@ -880,6 +875,8 @@ interface FluentTypes {
     */
    FluentConfiguration.InvocationBatchingConfig invocationBatching();
 
+   FluentConfiguration.VersioningConfig versioning();
+
    Configuration build();
 }
 
@@ -953,6 +950,11 @@ abstract class AbstractFluentConfigurationBean extends AbstractNamedCacheConfigu
    @Override
    public FluentConfiguration.StoreAsBinaryConfig storeAsBinary() {
       return config.storeAsBinary.enabled(true);
+   }
+
+   @Override
+   public FluentConfiguration.VersioningConfig versioning() {
+      return config.versioning.enable();
    }
 
    @Override

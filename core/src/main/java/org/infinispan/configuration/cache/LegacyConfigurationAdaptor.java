@@ -41,7 +41,6 @@ public class LegacyConfigurationAdaptor {
       }
       legacy.clustering()
       .hash()
-            .hashSeed(config.clustering().hash().hashSeed())
             .numOwners(config.clustering().hash().numOwners())
             .numVirtualNodes(config.clustering().hash().numVirtualNodes())
             .rehashEnabled(config.clustering().hash().isRehashEnabled())
@@ -181,7 +180,12 @@ public class LegacyConfigurationAdaptor {
       }
         
       legacy.unsafe().unreliableReturnValues(config.unsafe().unreliableReturnValues());
-      
+
+      if (config.versioningConfiguration().enabled()) {
+         legacy.versioning()
+               .enable()
+               .versioningScheme(config.versioningConfiguration().scheme());
+      }
       
       return legacy.build();
    }

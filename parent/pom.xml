@@ -119,7 +119,7 @@
       <version.gnu.getopt>1.0.13</version.gnu.getopt>
       <version.guava>r03</version.guava>
       <version.h2.driver>1.1.117</version.h2.driver>
-      <version.hibernate.search>4.0.0.Beta2</version.hibernate.search>
+      <version.hibernate.search>4.0.0.CR2</version.hibernate.search>
       <version.jackson>1.6.1</version.jackson>
       <version.javax.cache>0.4</version.javax.cache>
       <version.javax.persistence>1.0</version.javax.persistence>
@@ -152,11 +152,11 @@
       <version.rhq>3.0.0</version.rhq>
       <version.scala>2.9.1</version.scala>
       <version.slf4j>1.6.1</version.slf4j>
-      <version.solder>3.1.0.Beta4</version.solder>
+      <version.solder>3.1.0.CR1</version.solder>
       <version.spymemcached>2.5</version.spymemcached>
       <version.testng>5.11</version.testng>
       <version.webdav.servlet>2.0.1</version.webdav.servlet>
-      <version.weld>1.1.3.SP1</version.weld>
+      <version.weld>1.1.4.Final</version.weld>
       <version.xsom>20081112</version.xsom>
       <version.xstream>1.4.1</version.xstream>
       <version.javassist>3.12.1.GA</version.javassist>
@@ -461,10 +461,6 @@
                   </property>
                   <property>
                      <name>java.net.preferIPv4Stack</name>
-                     <value>true</value>
-                  </property>
-                  <property>
-                     <name>infinispan.suppress_cache_creation_warning</name>
                      <value>true</value>
                   </property>
                </systemProperties>
@@ -884,10 +880,6 @@
                         </property>
                         <property>
                            <name>java.net.preferIPv4Stack</name>
-                           <value>true</value>
-                        </property>
-                        <property>
-                           <name>infinispan.suppress_cache_creation_warning</name>
                            <value>true</value>
                         </property>
                         <property>

@@ -73,7 +73,7 @@ public class ConfigurationUnitTest {
          .build();
       org.infinispan.config.Configuration legacy = new LegacyConfigurationAdaptor().adapt(configuration);
       Assert.assertTrue(legacy.isTransactionAutoCommit());
-      Assert.assertEquals(org.infinispan.config.Configuration.CacheMode.DIST_SYNC.name(), CacheMode.DIST_SYNC.name());
+      Assert.assertEquals(legacy.getCacheMode().name(), CacheMode.DIST_SYNC.name());
    }
    
   @Test
@@ -107,6 +107,15 @@ public class ConfigurationUnitTest {
 
       Assert.assertEquals(cache.get("Foo"), "2");
       Assert.assertEquals(cache.get("Bar"), "4");
+   }
+   
+   @Test
+   public void testReplAsyncWithQueue() {
+      Configuration configuration = new ConfigurationBuilder()
+         .clustering().cacheMode(CacheMode.REPL_ASYNC)
+         .async().useReplQueue(true).replQueueInterval(1222)
+         .build();
+      org.infinispan.config.Configuration legacy = new LegacyConfigurationAdaptor().adapt(configuration);
    }
    
    

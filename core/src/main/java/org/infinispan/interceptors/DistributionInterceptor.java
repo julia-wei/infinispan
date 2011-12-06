@@ -66,6 +66,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -136,7 +137,8 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
          }
 
          // need to check in the context as well since a null retval is not necessarily an indication of the entry not being
-         // available.  It could just have been removed in the same tx beforehand.
+         // available.  It could just have been removed in the same tx beforehand.  Also don't bother with a remote get if
+         // the entry is mapped to the local node.
          if (needsRemoteGet(ctx, command.getKey(), returnValue == null))
             returnValue = remoteGetAndStoreInL1(ctx, command.getKey(), false);
          return returnValue;
@@ -208,10 +210,17 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
          if (storeInL1) {
             if (isL1CacheEnabled) {
                if (trace) log.tracef("Caching remotely retrieved entry for key %s in L1", key);
-               long lifespan = ice.getLifespan() < 0 ? configuration.getL1Lifespan() : Math.min(ice.getLifespan(), configuration.getL1Lifespan());
-               PutKeyValueCommand put = cf.buildPutKeyValueCommand(ice.getKey(), ice.getValue(), lifespan, -1, ctx.getFlags());
-               lockAndWrap(ctx, key, ice);
-               invokeNextInterceptor(ctx, put);
+               // This should be fail-safe
+               try {
+                  long lifespan = ice.getLifespan() < 0 ? configuration.getL1Lifespan() : Math.min(ice.getLifespan(), configuration.getL1Lifespan());
+                  PutKeyValueCommand put = cf.buildPutKeyValueCommand(ice.getKey(), ice.getValue(), lifespan, -1, ctx.getFlags());
+                  lockAndWrap(ctx, key, ice);
+                  invokeNextInterceptor(ctx, put);
+               } catch (Exception e) {
+                  // Couldn't store in L1 for some reason.  But don't fail the transaction!
+                  log.infof("Unable to store entry %s in L1 cache", key);
+                  log.debug("Inability to store in L1 caused by", e);
+               }
             } else {
                CacheEntry ce = ctx.lookupEntry(key);
                if (ce == null || ce.isNull() || ce.isLockPlaceholder() || ce.getValue() == null) {
@@ -313,27 +322,35 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
 
          Collection<Address> preparedOn = ((LocalTxInvocationContext) ctx).getRemoteLocksAcquired();
 
-         NotifyingNotifiableFuture<Object> f = null;
-         if (isL1CacheEnabled) {
-            f = l1Manager.flushCache(ctx.getLockedKeys(), null, null);
-         }
-
+         Future<?> f = flushL1Caches(ctx);
          sendCommitCommand(ctx, command, preparedOn);
+         blockOnL1FutureIfNeeded(f);
 
-         if (f != null && configuration.isSyncCommitPhase()) {
-            try {
-               f.get();
-            } catch (Exception e) {
-               if (log.isInfoEnabled()) log.failedInvalidatingRemoteCache(e);
-            }
-         }
+      } else if (isL1CacheEnabled && !ctx.isOriginLocal() && !ctx.getLockedKeys().isEmpty()) {
+         // We fall into this block if we are a remote node, happen to be the primary data owner and have locked keys.
+         // it is still our responsibility to invalidate L1 caches in the cluster.
+         blockOnL1FutureIfNeeded(flushL1Caches(ctx));
       }
       return invokeNextInterceptor(ctx, command);
    }
 
+   private Future<?> flushL1Caches(InvocationContext ctx) {
+      return isL1CacheEnabled ? l1Manager.flushCache(ctx.getLockedKeys(), null, ctx.getOrigin()) : null;
+   }
+
+   private void blockOnL1FutureIfNeeded(Future<?> f) {
+      if (f != null && configuration.isSyncCommitPhase()) {
+         try {
+            f.get();
+         } catch (Exception e) {
+            if (log.isInfoEnabled()) log.failedInvalidatingRemoteCache(e);
+         }
+      }
+   }
+
    private void sendCommitCommand(TxInvocationContext ctx, CommitCommand command, Collection<Address> preparedOn)
          throws TimeoutException, InterruptedException {
-      // we only send the commit command to the nodes that 
+      // we only send the commit command to the nodes that
       Collection<Address> recipients = dm.getAffectedNodes(ctx.getAffectedKeys());
 
       // By default, use the configured commit sync settings
@@ -374,18 +391,23 @@ public class DistributionInterceptor extends BaseRpcInterceptor {
          int newCacheViewId = -1;
          stateTransferLock.waitForStateTransferToEnd(ctx, command, newCacheViewId);
 
-         NotifyingNotifiableFuture<Object> f = null;
-         if (isL1CacheEnabled && command.isOnePhaseCommit())
-            f = l1Manager.flushCache(ctx.getLockedKeys(), null, null);
+         if (command.isOnePhaseCommit()) flushL1Caches(ctx); // if we are one-phase, don't block on this future.
 
          Collection<Address> recipients = dm.getAffectedNodes(ctx.getAffectedKeys());
-         // this method will return immediately if we're the only member (because exclude_self=true)
-         rpcManager.invokeRemotely(recipients, command, sync);
+         prepareOnAffectedNodes(ctx, command, recipients, sync);
 
          ((LocalTxInvocationContext) ctx).remoteLocksAcquired(recipients);
-         if (f != null) f.get();
+      } else if (isL1CacheEnabled && command.isOnePhaseCommit() && !ctx.isOriginLocal() && !ctx.getLockedKeys().isEmpty()) {
+         // We fall into this block if we are a remote node, happen to be the primary data owner and have locked keys.
+         // it is still our responsibility to invalidate L1 caches in the cluster.
+         flushL1Caches(ctx);
       }
       return retVal;
+   }
+
+   protected void prepareOnAffectedNodes(TxInvocationContext ctx, PrepareCommand command, Collection<Address> recipients, boolean sync) {
+      // this method will return immediately if we're the only member (because exclude_self=true)
+      rpcManager.invokeRemotely(recipients, command, sync);
    }
 
    @Override
