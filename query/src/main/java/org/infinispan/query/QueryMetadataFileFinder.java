@@ -17,33 +17,19 @@
  * 02110-1301 USA
  */
 
-package org.infinispan.configuration.cache;
+package org.infinispan.query;
+
+import org.infinispan.factories.components.ModuleMetadataFileFinder;
 
 /**
  * // TODO: Document this
  *
- * @author Galder Zamarreño
- * @since // TODO
+ * @author Manik Surtani
+ * @since 5.1
  */
-public abstract class AbstractLockSupportCacheStoreConfigurationBuilder<T>
-      extends AbstractLoaderConfigurationChildBuilder<T> {
-
-   // TODO Add defaults
-   int lockConcurrencyLevel;
-   long lockAcquistionTimeout;
-
-   protected AbstractLockSupportCacheStoreConfigurationBuilder(LoaderConfigurationBuilder builder) {
-      super(builder);
+public class QueryMetadataFileFinder implements ModuleMetadataFileFinder {
+   @Override
+   public String getMetadataFilename() {
+      return "infinispan-query-component-metadata.dat";
    }
-
-   public AbstractLockSupportCacheStoreConfigurationBuilder lockConcurrencyLevel(int lockConcurrencyLevel) {
-      this.lockConcurrencyLevel = lockConcurrencyLevel;
-      return this;
-   }
-
-   public AbstractLockSupportCacheStoreConfigurationBuilder lockAcquistionTimeout(long lockAcquistionTimeout) {
-      this.lockAcquistionTimeout = lockAcquistionTimeout;
-      return this;
-   }
-
 }
