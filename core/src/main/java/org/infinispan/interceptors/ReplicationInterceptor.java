@@ -34,6 +34,7 @@ import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.config.Configuration;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.context.impl.LocalTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.interceptors.base.BaseRpcInterceptor;
@@ -60,7 +61,7 @@ import java.util.concurrent.TimeoutException;
 public class ReplicationInterceptor extends BaseRpcInterceptor {
 
    private StateTransferLock stateTransferLock;
-   private CommandsFactory cf;
+   CommandsFactory cf;
 
    private static final Log log = LogFactory.getLog(ReplicationInterceptor.class);
 
@@ -107,11 +108,15 @@ public class ReplicationInterceptor extends BaseRpcInterceptor {
 
          if (!resendTo.isEmpty()) {
             getLog().debugf("Need to resend prepares for %s to %s", command.getGlobalTransaction(), resendTo);
-            // Make sure this is 1-Phase!!
-            PrepareCommand pc = cf.buildPrepareCommand(command.getGlobalTransaction(), ctx.getModifications(), true);
+            PrepareCommand pc = buildPrepareCommandForResend(ctx, command);
             rpcManager.invokeRemotely(resendTo, pc, true, true);
          }
       }
+   }
+
+   protected PrepareCommand buildPrepareCommandForResend(TxInvocationContext ctx, CommitCommand command) {
+      // Make sure this is 1-Phase!!
+      return cf.buildPrepareCommand(command.getGlobalTransaction(), ctx.getModifications(), true);
    }
 
    @Override
@@ -121,6 +126,7 @@ public class ReplicationInterceptor extends BaseRpcInterceptor {
          stateTransferLock.waitForStateTransferToEnd(ctx, command, -1);
 
          broadcastPrepare(ctx, command);
+         ((LocalTxInvocationContext) ctx).remoteLocksAcquired(rpcManager.getTransport().getMembers());
       }
       return retVal;
    }

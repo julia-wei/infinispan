@@ -1,17 +1,25 @@
 package org.infinispan.configuration.cache;
 
+import java.util.Properties;
+
 import org.infinispan.commons.hash.Hash;
 import org.infinispan.config.Configuration;
 import org.infinispan.config.Configuration.CacheMode;
 import org.infinispan.config.CustomInterceptorConfig;
 import org.infinispan.config.FluentConfiguration;
+import org.infinispan.config.FluentConfiguration.CustomInterceptorPosition;
+import org.infinispan.config.FluentConfiguration.IndexingConfig;
+import org.infinispan.config.parsing.XmlConfigHelper;
+import org.infinispan.configuration.cache.InterceptorConfiguration.Position;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.loaders.AbstractCacheLoaderConfig;
 import org.infinispan.loaders.AbstractCacheStoreConfig;
 import org.infinispan.loaders.CacheLoader;
 import org.infinispan.loaders.CacheLoaderConfig;
+import org.infinispan.loaders.CacheLoaderMetadata;
 import org.infinispan.loaders.CacheStoreConfig;
+import org.infinispan.loaders.file.FileCacheStoreConfig;
 import org.infinispan.remoting.ReplicationQueue;
 import org.infinispan.util.Util;
 
@@ -88,10 +96,21 @@ public class LegacyConfigurationAdaptor {
                .replTimeout(config.clustering().sync().replTimeout());
       }
       
-      for (CommandInterceptor interceptor : config.customInterceptors().interceptors()) {
-         legacy.clustering()
+      for (InterceptorConfiguration interceptor : config.customInterceptors().interceptors()) {
+         CustomInterceptorPosition position = legacy.clustering()
          .customInterceptors()
-            .add(interceptor);
+            // TODO This seems to miss most of the parameters like after and before out?!?
+            .add(interceptor.interceptor());
+         if (interceptor.after() != null)
+            position.after(interceptor.after());
+         if (interceptor.index() != -1)
+         position.atIndex(interceptor.index());
+         if (interceptor.before() != null)
+            position.before(interceptor.before());
+         if (interceptor.first())
+            position.first();
+         if (interceptor.last())
+            position.last();
       }
       
       legacy.dataContainer()
@@ -117,9 +136,11 @@ public class LegacyConfigurationAdaptor {
          .reaperEnabled(config.expiration().reaperEnabled())
          .wakeUpInterval(config.expiration().wakeUpInterval());
          
-      if (config.indexing().enabled())
-         legacy.indexing()
-            .indexLocalOnly(config.indexing().indexLocalOnly());
+      if (config.indexing().enabled()) {
+         IndexingConfig indexing = legacy.indexing();
+         indexing.indexLocalOnly(config.indexing().indexLocalOnly());
+         indexing.withProperties(config.indexing().properties());
+      }
       else
          legacy.indexing()
             .disable();
@@ -137,24 +158,51 @@ public class LegacyConfigurationAdaptor {
          .preload(config.loaders().preload())
          .shared(config.loaders().shared());
 
-      for (LoaderConfiguration loader : config.loaders().cacheLoaders()) {
-         AbstractCacheStoreConfig csc = new AbstractCacheStoreConfig();
-         csc.setCacheLoaderClassName(loader.cacheLoader().getClass().getName());
-         csc.fetchPersistentState(loader.fetchPersistentState());
-         csc.ignoreModifications(loader.ignoreModifications());
-         csc.purgeOnStartup(loader.purgeOnStartup());
-         csc.purgerThreads(loader.purgerThreads());
-         csc.setPurgeSynchronously(loader.purgeSynchronously());
-         csc.getAsyncStoreConfig().setEnabled(loader.async().enabled());
-         csc.getAsyncStoreConfig().flushLockTimeout(loader.async().flushLockTimeout());
-         csc.getAsyncStoreConfig().modificationQueueSize(loader.async().modificationQueueSize());
-         csc.getAsyncStoreConfig().shutdownTimeout(loader.async().shutdownTimeout());
-         csc.getAsyncStoreConfig().threadPoolSize(loader.async().threadPoolSize());
-         csc.setProperties(loader.properties());
-         csc.getSingletonStoreConfig().enabled(loader.singletonStore().enabled());
-         csc.getSingletonStoreConfig().pushStateTimeout(loader.singletonStore().pushStateTimeout());
-         csc.getSingletonStoreConfig().pushStateWhenCoordinator(loader.singletonStore().pushStateWhenCoordinator());
-         legacy.loaders().addCacheLoader(csc);
+      for (AbstractLoaderConfiguration loader : config.loaders().cacheLoaders()) {
+         CacheLoaderConfig clc = null;
+         if (loader instanceof LoaderConfiguration) {
+            CacheLoader cacheLoader = ((LoaderConfiguration) loader).cacheLoader();
+            if (cacheLoader.getClass().isAnnotationPresent(CacheLoaderMetadata.class)) {
+               clc = Util.getInstance(cacheLoader.getClass().getAnnotation(CacheLoaderMetadata.class).configurationClass());
+            } else {
+               AbstractCacheStoreConfig acsc = new AbstractCacheStoreConfig();
+               acsc.setCacheLoaderClassName(((LoaderConfiguration) loader).cacheLoader().getClass().getName());
+               clc = acsc;
+            }
+            
+         } else if (loader instanceof FileCacheStoreConfiguration) {
+            FileCacheStoreConfig fcsc = new FileCacheStoreConfig();
+            clc = fcsc;
+            String location = loader.properties().getProperty("location");
+            if (location != null)
+               fcsc.location(location);
+         }
+         if (clc instanceof CacheStoreConfig) {
+            CacheStoreConfig csc = (CacheStoreConfig) clc;
+            csc.fetchPersistentState(loader.fetchPersistentState());
+            csc.ignoreModifications(loader.ignoreModifications());
+            csc.purgeOnStartup(loader.purgeOnStartup());  
+            csc.setPurgeSynchronously(loader.purgeSynchronously());
+            csc.getAsyncStoreConfig().setEnabled(loader.async().enabled());
+            csc.getAsyncStoreConfig().flushLockTimeout(loader.async().flushLockTimeout());
+            csc.getAsyncStoreConfig().modificationQueueSize(loader.async().modificationQueueSize());
+            csc.getAsyncStoreConfig().shutdownTimeout(loader.async().shutdownTimeout());
+            csc.getAsyncStoreConfig().threadPoolSize(loader.async().threadPoolSize());
+            
+            csc.getSingletonStoreConfig().enabled(loader.singletonStore().enabled());
+            csc.getSingletonStoreConfig().pushStateTimeout(loader.singletonStore().pushStateTimeout());
+            csc.getSingletonStoreConfig().pushStateWhenCoordinator(loader.singletonStore().pushStateWhenCoordinator());
+         }
+         if (clc instanceof AbstractCacheStoreConfig) {
+            AbstractCacheStoreConfig acsc = (AbstractCacheStoreConfig) clc;
+            Properties p = loader.properties();
+            acsc.setProperties(p);
+            if (p != null) XmlConfigHelper.setValues(clc, p, false, true);
+            if (loader instanceof LoaderConfiguration)
+               acsc.purgerThreads(((LoaderConfiguration) loader).purgerThreads());
+         }
+         
+         legacy.loaders().addCacheLoader(clc);
       }
       
       legacy.locking()
@@ -185,7 +233,7 @@ public class LegacyConfigurationAdaptor {
          .useSynchronization(config.transaction().useSynchronization());
       
       if (config.transaction().recovery().enabled()) {
-         legacy.transaction().recovery();
+         legacy.transaction().recovery().recoveryInfoCacheName(config.transaction().recovery().recoveryInfoCacheName());
       }
         
       legacy.unsafe().unreliableReturnValues(config.unsafe().unreliableReturnValues());
@@ -278,9 +326,12 @@ public class LegacyConfigurationAdaptor {
       }
       
       for (CustomInterceptorConfig interceptor : legacy.getCustomInterceptors()) {
-         builder.clustering()
-            .customInterceptors()
-               .addInterceptor(interceptor.getInterceptor());
+         InterceptorConfigurationBuilder interceptorConfigurationBuilder = builder.clustering().customInterceptors().addInterceptor();
+         interceptorConfigurationBuilder.after(Util.<CommandInterceptor>loadClass(interceptor.getAfter(), legacy.getClassLoader()));
+         interceptorConfigurationBuilder.before(Util.<CommandInterceptor>loadClass(interceptor.getBefore(), legacy.getClassLoader()));
+         interceptorConfigurationBuilder.index(interceptor.getIndex());
+         interceptorConfigurationBuilder.interceptor(interceptor.getInterceptor());
+         interceptorConfigurationBuilder.position(Position.valueOf(interceptor.getPositionAsString()));
       }
       
       builder.dataContainer()

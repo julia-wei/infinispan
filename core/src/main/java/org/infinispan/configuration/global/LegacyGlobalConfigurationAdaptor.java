@@ -28,9 +28,11 @@ public class LegacyGlobalConfigurationAdaptor {
          .siteId(config.transport().siteId())
          .strictPeerToPeer(config.transport().strictPeerToPeer())
          .distributedSyncTimeout(config.transport().distributedSyncTimeout())
-         .transportClass(config.transport().transport().getClass())
          .nodeName(config.transport().nodeName())
          .withProperties(config.transport().properties());
+      
+      if (config.transport().transport() != null)
+         legacy.transport().transportClass(config.transport().transport().getClass());
       
       if (config.globalJmxStatistics().enabled()) {
          legacy.globalJmxStatistics()
@@ -40,8 +42,6 @@ public class LegacyGlobalConfigurationAdaptor {
             .cacheManagerName(config.globalJmxStatistics().cacheManagerName())
             .withProperties(config.globalJmxStatistics().properties());
       }
-      else
-         legacy.globalJmxStatistics().disable();
          
       
       legacy.serialization()
@@ -49,7 +49,7 @@ public class LegacyGlobalConfigurationAdaptor {
          .version(config.serialization().version());
       
       for (Entry<Integer, AdvancedExternalizer<?>> entry : config.serialization().advancedExternalizers().entrySet()) {
-         legacy.serialization().addAdvancedExternalizer(entry.getValue());
+         legacy.serialization().addAdvancedExternalizer(entry.getKey(), entry.getValue());
       }
       
       legacy.asyncTransportExecutor()

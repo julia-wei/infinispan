@@ -210,12 +210,6 @@ public class DistributedExecutionCompletionService<V> implements CompletionServi
         return completionQueue.poll(timeout, unit);
     }
     
-    public <K> Future<V> submit(Callable<V> task, K... input) {
-       NotifyingFuture<V> f = (NotifyingFuture<V>) executor.submit(task, input);
-       f.attachListener(listener);
-       return f;
-    }
-
     public List<Future<V>> submitEverywhere(Callable<V> task) {
        List<Future<V>> fl = executor.submitEverywhere(task);
        for (Future<V> f : fl) {
