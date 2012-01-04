@@ -145,7 +145,7 @@ public abstract class AbstractCrashTest extends MultipleCacheManagersTest {
             if (rpcCommand instanceof TxCompletionNotificationCommand) {
                releaseLocksLatch.countDown();
             } else {
-               realOne.invokeRemotely(recipients, rpcCommand, sync);
+               realOne.invokeRemotely(recipients, rpcCommand, sync, sync);
             }
          }
       };

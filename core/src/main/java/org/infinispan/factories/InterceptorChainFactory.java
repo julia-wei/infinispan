@@ -54,6 +54,18 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
 
    private static final Log log = LogFactory.getLog(InterceptorChainFactory.class);
 
+   public CommandInterceptor createInterceptor(Class<? extends CommandInterceptor> clazz) {
+       CommandInterceptor chainedInterceptor = componentRegistry.getComponent(clazz);
+       if (chainedInterceptor == null) {
+          chainedInterceptor = Util.getInstance(clazz);
+          register(clazz, chainedInterceptor);
+       } else {
+          // wipe next/last chaining!!
+          chainedInterceptor.setNext(null);
+       }
+       return chainedInterceptor;
+    }
+   
    private CommandInterceptor createInterceptor(CommandInterceptor interceptor, Class<? extends CommandInterceptor> interceptorType) {
       CommandInterceptor chainedInterceptor = componentRegistry.getComponent(interceptorType);
       if (chainedInterceptor == null) {
