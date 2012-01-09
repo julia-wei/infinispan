@@ -33,6 +33,8 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -306,7 +308,9 @@ public class GridFileTest extends SingleCacheManagerTest {
 
    public void testListFilesWithFilenameFilter() throws Exception {
       File dir = createDirWithFiles();
-      File[] files = dir.listFiles(new FooFilenameFilter());
+      FooFilenameFilter filter = new FooFilenameFilter();
+      filter.expectDir(dir);
+      File[] files = dir.listFiles(filter);
       assertEquals(
             asSet(getPaths(files)),
             asSet("/myDir/foo1.txt", "/myDir/foo2.txt", "/myDir/fooDir"));
@@ -330,6 +334,134 @@ public class GridFileTest extends SingleCacheManagerTest {
       assertNotNull(filenames);
       assertEquals(filenames.length, 1);
       assertEquals(filenames[0], "foo.txt");
+   }
+
+   public void testReadableChannel() throws Exception {
+      String content = "This is the content of channelTest.txt";
+      writeToFile("/channelTest.txt", content, 10);
+
+      ReadableGridFileChannel channel = fs.getReadableChannel("/channelTest.txt");
+      try {
+         assertTrue(channel.isOpen());
+         ByteBuffer buffer = ByteBuffer.allocate(1000);
+         channel.read(buffer);
+         assertEquals(getStringFrom(buffer), content);
+      } finally {
+         channel.close();
+      }
+
+      assertFalse(channel.isOpen());
+   }
+
+   public void testReadableChannelPosition() throws Exception {
+      writeToFile("/position.txt", "0123456789", 3);
+
+      ReadableGridFileChannel channel = fs.getReadableChannel("/position.txt");
+      try {
+         assertEquals(channel.position(), 0);
+
+         channel.position(5);
+         assertEquals(channel.position(), 5);
+         assertEquals(getStringFromChannel(channel, 3), "567");
+         assertEquals(channel.position(), 8);
+
+         channel.position(2);
+         assertEquals(channel.position(), 2);
+         assertEquals(getStringFromChannel(channel, 5), "23456");
+         assertEquals(channel.position(), 7);
+      } finally {
+         channel.close();
+      }
+   }
+
+   public void testWritableChannel() throws Exception {
+      WritableGridFileChannel channel = fs.getWritableChannel("/channelTest.txt", false, 10);
+      try {
+         assertTrue(channel.isOpen());
+         channel.write(ByteBuffer.wrap("This file spans multiple chunks.".getBytes()));
+      } finally {
+         channel.close();
+      }
+      assertFalse(channel.isOpen());
+      assertEquals(getContents("/channelTest.txt"), "This file spans multiple chunks.");
+   }
+
+   public void testWritableChannelAppend() throws Exception {
+      writeToFile("/append.txt", "Initial text.", 3);
+
+      WritableGridFileChannel channel = fs.getWritableChannel("/append.txt", true);
+      try {
+         channel.write(ByteBuffer.wrap("Appended text.".getBytes()));
+      } finally {
+         channel.close();
+      }
+      assertEquals(getContents("/append.txt"), "Initial text.Appended text.");
+   }
+
+   public void testGetAbsolutePath() throws IOException {
+      assertEquals(fs.getFile("/file.txt").getAbsolutePath(), "/file.txt");
+      assertEquals(fs.getFile("file.txt").getAbsolutePath(), "/file.txt");
+      assertEquals(fs.getFile("dir/file.txt").getAbsolutePath(), "/dir/file.txt");
+   }
+
+   public void testGetAbsoluteFile() throws IOException {
+      assertTrue(fs.getFile("file.txt").getAbsoluteFile() instanceof GridFile);
+      assertEquals(fs.getFile("/file.txt").getAbsoluteFile().getPath(), "/file.txt");
+      assertEquals(fs.getFile("file.txt").getAbsoluteFile().getPath(), "/file.txt");
+      assertEquals(fs.getFile("dir/file.txt").getAbsoluteFile().getPath(), "/dir/file.txt");
+   }
+
+   public void testIsAbsolute() throws IOException {
+      assertTrue(fs.getFile("/file.txt").isAbsolute());
+      assertFalse(fs.getFile("file.txt").isAbsolute());
+   }
+
+   public void testLeadingSeparatorIsOptional() throws IOException {
+      File gridFile = fs.getFile("file.txt");
+      assert gridFile.createNewFile();
+
+      assertTrue(fs.getFile("file.txt").exists());
+      assertTrue(fs.getFile("/file.txt").exists());
+
+      File dir = fs.getFile("dir");
+      boolean dirCreated = dir.mkdir();
+      assertTrue(dirCreated);
+
+      assertTrue(fs.getFile("dir").exists());
+      assertTrue(fs.getFile("/dir").exists());
+   }
+
+   public void testGetName() throws IOException {
+      assertEquals(fs.getFile("").getName(), "");
+      assertEquals(fs.getFile("/").getName(), "");
+      assertEquals(fs.getFile("file.txt").getName(), "file.txt");
+      assertEquals(fs.getFile("/file.txt").getName(), "file.txt");
+      assertEquals(fs.getFile("/dir/file.txt").getName(), "file.txt");
+      assertEquals(fs.getFile("/dir/subdir/file.txt").getName(), "file.txt");
+      assertEquals(fs.getFile("dir/subdir/file.txt").getName(), "file.txt");
+   }
+
+   public void testEquals() throws Exception {
+      assertFalse(fs.getFile("").equals(null));
+      assertTrue(fs.getFile("").equals(fs.getFile("")));
+      assertTrue(fs.getFile("").equals(fs.getFile("/")));
+      assertTrue(fs.getFile("foo.txt").equals(fs.getFile("foo.txt")));
+      assertTrue(fs.getFile("foo.txt").equals(fs.getFile("/foo.txt")));
+      assertFalse(fs.getFile("foo.txt").equals(fs.getFile("FOO.TXT")));
+      assertFalse(fs.getFile("/foo.txt").equals(new File("/foo.txt")));
+   }
+
+   private String getStringFromChannel(ReadableByteChannel channel, int length) throws IOException {
+      ByteBuffer buffer = ByteBuffer.allocate(length);
+      channel.read(buffer);
+      return getStringFrom(buffer);
+   }
+
+   private String getStringFrom(ByteBuffer buffer) {
+      buffer.flip();
+      byte[] buf = new byte[buffer.remaining()];
+      buffer.get(buf);
+      return new String(buf);
    }
 
    private String[] getPaths(File[] files) {
@@ -411,9 +543,17 @@ public class GridFileTest extends SingleCacheManagerTest {
    }
 
    private static class FooFilenameFilter implements FilenameFilter {
+      private File expectedDir;
+
       @Override
       public boolean accept(File dir, String name) {
+         if (expectedDir != null)
+            assertEquals(dir, expectedDir, "accept() invoked with unexpected dir");
          return name.startsWith("foo");
+      }
+
+      public void expectDir(File dir) {
+         expectedDir = dir;
       }
    }
 
