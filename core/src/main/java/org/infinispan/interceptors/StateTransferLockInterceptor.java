@@ -104,7 +104,7 @@ public class StateTransferLockInterceptor extends CommandInterceptor {
       }
       try {
          // retry commit commands indefinitely
-         return handleWithRetries(ctx, command, Long.MAX_VALUE);
+         return handleWithRetries(ctx, command, Integer.MAX_VALUE);
       } finally {
          stateTransferLock.releaseForCommand(ctx, command);
       }
