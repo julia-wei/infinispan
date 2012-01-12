@@ -819,6 +819,10 @@ public interface Log extends BasicLogger {
    @Message(value = "The 'wakeUpInterval' attribute of the 'eviction' configuration XML element is deprecated. Setting the 'wakeUpInterval' attribute of the 'expiration' configuration XML element to %d instead", id = 176)
    void evictionWakeUpIntervalDeprecated(Long wakeUpInterval);
    
+   @LogMessage(level = WARN)
+   @Message(value = "%s has been deprecated as a synonym for %s. Use one of %s instead", id = 177)
+   void randomCacheModeSynonymsDeprecated(String candidate, String mode, List<String> synonyms);
+   
  	@LogMessage(level = ERROR)
  	@Message(value = "Could not locate key class %s", id = 14001)
  	void keyClassNotFound(String keyClassName, @Cause Exception e);
