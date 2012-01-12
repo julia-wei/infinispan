@@ -285,6 +285,7 @@ public class Parser {
                break;
             case USE_1PC_FOR_AUTOCOMMIT_TX:
                builder.transaction().use1PcForAutoCommitTransactions(Boolean.valueOf(value));
+               break;
             default:
                throw ParseUtils.unexpectedAttribute(reader, i);
          }
@@ -876,22 +877,22 @@ public class Parser {
       
       if (clusteringMode != null) {
          String mode = clusteringMode.toUpperCase();
-         if (mode.startsWith("R")) {
+         if (ParsedCacheMode.REPL.matches(mode)) {
             if (!asynchronous)
               builder.clustering().cacheMode(REPL_SYNC);
             else
                builder.clustering().cacheMode(REPL_ASYNC);
-         } else if (mode.startsWith("I")) {
+         } else if (ParsedCacheMode.INVALIDATION.matches(mode)) {
             if (!asynchronous)
                builder.clustering().cacheMode(INVALIDATION_SYNC);
             else
                builder.clustering().cacheMode(INVALIDATION_ASYNC);
-         } else if (mode.startsWith("D")) {
+         } else if (ParsedCacheMode.DIST.matches(mode)) {
             if (!asynchronous)
                builder.clustering().cacheMode(DIST_SYNC);
             else
                builder.clustering().cacheMode(DIST_ASYNC);
-         } else if (mode.startsWith("L")) {
+         } else if (ParsedCacheMode.LOCAL.matches(mode)) {
             builder.clustering().cacheMode(LOCAL);
          } else {
             throw new ConfigurationException("Invalid clustering mode " + clusteringMode + ", " + reader.getLocation());
