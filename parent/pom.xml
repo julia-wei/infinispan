@@ -121,7 +121,7 @@
       <version.guava>r03</version.guava>
       <version.h2.driver>1.1.117</version.h2.driver>
       <version.hibernate.search>4.1.0.Alpha1</version.hibernate.search>
-      <version.jackson>1.6.1</version.jackson>
+      <version.jackson>1.9.2</version.jackson>
       <version.javax.cache>0.4</version.javax.cache>
       <version.javax.persistence>1.0</version.javax.persistence>
       <version.javax.servlet>2.5</version.javax.servlet>
@@ -152,7 +152,7 @@
       <version.rhq>3.0.0</version.rhq>
       <version.scala>2.9.1</version.scala>
       <version.slf4j>1.6.1</version.slf4j>
-      <version.solder>3.1.0.CR1</version.solder>
+      <version.solder>3.1.0.Final</version.solder>
       <version.spymemcached>2.5</version.spymemcached>
       <version.testng>5.11</version.testng>
       <version.webdav.servlet>2.0.1</version.webdav.servlet>

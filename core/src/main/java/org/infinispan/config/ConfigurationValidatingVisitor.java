@@ -67,9 +67,9 @@ public class ConfigurationValidatingVisitor extends AbstractConfigurationBeanVis
       Configuration.CacheMode mode = clusteringType.mode;
       Configuration.AsyncType async = clusteringType.async;
       Configuration.StateRetrievalType state = clusteringType.stateRetrieval;
-      // certain combinations are illegal, such as state transfer + DIST
-      if (mode.isDistributed() && state.fetchInMemoryState)
-         throw new ConfigurationException("Cache cannot use DISTRIBUTION mode and have fetchInMemoryState set to true.  Perhaps you meant to enable rehashing?");
+      // certain combinations are illegal, such as state transfer + invalidation
+      if (mode.isInvalidation() && state.fetchInMemoryState)
+         throw new ConfigurationException("Cache cannot use INVALIDATION mode and have fetchInMemoryState set to true.");
 
       if (mode.isDistributed() && async.useReplQueue)
          throw new ConfigurationException("Use of the replication queue is invalid when using DISTRIBUTED mode.");
@@ -152,4 +152,16 @@ public class ConfigurationValidatingVisitor extends AbstractConfigurationBeanVis
          log.warnf("Indexing can only be enabled if infinispan-query.jar is available on your classpath, and this jar has not been detected. Intended behavior may not be exhibited.");
       }
    }
+
+   @Override
+   public void visitTransactionType(Configuration.TransactionType bean) {
+      if (bean.transactionManagerLookup == null && bean.transactionManagerLookupClass == null) {
+         if (bean.build().isInvocationBatchingEnabled()) {
+            bean.transactionManagerLookupClass = null;
+            if (!bean.useSynchronization) log.debug("Switching to Synchronization-based enlistment.");
+            bean.useSynchronization = true;
+         }
+      }
+   }
+
 }

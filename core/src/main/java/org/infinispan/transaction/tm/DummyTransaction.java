@@ -35,6 +35,7 @@ import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -51,7 +52,7 @@ public class DummyTransaction implements Transaction {
 
    private volatile int status = Status.STATUS_UNKNOWN;
    protected final DummyBaseTransactionManager tm_;
-   protected final DummyXid xid;
+   protected final Xid xid;
 
    protected Set<Synchronization> syncs;
    private final List<XAResource> enlistedResources = new ArrayList<XAResource>(2);
@@ -59,8 +60,12 @@ public class DummyTransaction implements Transaction {
 
    public DummyTransaction(DummyBaseTransactionManager tm) {
       tm_ = tm;
-      xid = new DummyXid(tm.transactionManagerId);
       status = Status.STATUS_ACTIVE;
+      if (tm.isUseXaXid()) {
+         xid = new DummyXid(tm.transactionManagerId);
+      } else {
+         xid = new DummyNoXaXid();
+      }
    }
 
    /**
@@ -338,11 +343,25 @@ public class DummyTransaction implements Transaction {
       return getEnlistedResources().iterator().next();
    }
 
-   public DummyXid getXid() {
+   public Xid getXid() {
       return xid;
    }
 
    public Collection<Synchronization> getEnlistedSynchronization() {
       return syncs;
    }
+
+   /**
+    * Must be defined for increased performance
+    */
+   @Override
+   public final int hashCode() {
+      return xid.hashCode();
+   }
+
+   @Override
+   public final boolean equals(Object obj) {
+      return this == obj;
+   }
+
 }
