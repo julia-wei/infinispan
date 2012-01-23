@@ -937,28 +937,30 @@ public class Parser {
          Attribute attribute = Attribute.forName(reader.getAttributeLocalName(i));
          switch (attribute) {
             case ALWAYS_PROVIDE_IN_MEMORY_STATE:
-               builder.clustering().stateRetrieval().alwaysProvideInMemoryState(Boolean.valueOf(value));
+               log.alwaysProvideInMemoryStateDeprecated();
                break;
             case FETCH_IN_MEMORY_STATE:
-               builder.clustering().stateRetrieval().fetchInMemoryState(Boolean.valueOf(value));
+               log.stateRetrievalConfigurationDeprecaced();
+               builder.clustering().stateTransfer().fetchInMemoryState(Boolean.valueOf(value));
                break;
             case INITIAL_RETRY_WAIT_TIME:
-               builder.clustering().stateRetrieval().initialRetryWaitTime(Long.valueOf(value));
+               log.initialRetryWaitTimeDeprecated();
                break;
             case LOG_FLUSH_TIMEOUT:
-               builder.clustering().stateRetrieval().logFlushTimeout(Long.valueOf(value));
+               log.logFlushTimeoutDeprecated();
                break;
             case MAX_NON_PROGRESSING_LOG_WRITES:
-               builder.clustering().stateRetrieval().maxNonProgressingLogWrites(Integer.valueOf(value));
+               log.maxProgressingLogWritesDeprecated();
                break;
             case NUM_RETRIES:
-               builder.clustering().stateRetrieval().numRetries(Integer.valueOf(value));
+               log.numRetriesDeprecated();
                break;
             case RETRY_WAIT_TIME_INCREASE_FACTOR:
-               builder.clustering().stateRetrieval().retryWaitTimeIncreaseFactor(Integer.valueOf(value));
+               log.retryWaitTimeIncreaseFactorDeprecated();
                break;
             case TIMEOUT:
-               builder.clustering().stateRetrieval().timeout(Long.valueOf(value));
+               log.stateRetrievalConfigurationDeprecaced();
+               builder.clustering().stateTransfer().timeout(Long.valueOf(value));
                break;
             default:
                throw ParseUtils.unexpectedAttribute(reader, i);

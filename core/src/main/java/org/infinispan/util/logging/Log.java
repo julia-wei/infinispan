@@ -809,11 +809,11 @@ public interface Log extends BasicLogger {
    @LogMessage(level = WARN)
    @Message(value = "Unexpected error reading configuration", id = 174)
    void errorReadingConfiguration(@Cause Exception e);
-       
+   
    @LogMessage(level = WARN)
    @Message(value = "Unexpected error closing resource", id = 175)
    void failedToCloseResource(@Cause Throwable e);
-   
+
    @LogMessage(level = WARN)
    @Message(value = "The 'wakeUpInterval' attribute of the 'eviction' configuration XML element is deprecated. Setting the 'wakeUpInterval' attribute of the 'expiration' configuration XML element to %d instead", id = 176)
    void evictionWakeUpIntervalDeprecated(Long wakeUpInterval);
@@ -821,16 +821,35 @@ public interface Log extends BasicLogger {
    @LogMessage(level = WARN)
    @Message(value = "%s has been deprecated as a synonym for %s. Use one of %s instead", id = 177)
    void randomCacheModeSynonymsDeprecated(String candidate, String mode, List<String> synonyms);
-   
- 	@LogMessage(level = ERROR)
- 	@Message(value = "Could not locate key class %s", id = 14001)
- 	void keyClassNotFound(String keyClassName, @Cause Exception e);
- 
- 	@LogMessage(level = ERROR)
-    @Message(value = "Cannot instantiate an instance of Transformer class %s", id = 14002)
-    void couldNotInstantiaterTransformerClass(Class<?> transformer, @Cause Exception e);
- 
-    @LogMessage(level = INFO)
-    @Message(value = "Registering Query interceptor", id = 14003)
-    void registeringQueryInterceptor();   
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'alwaysProvideInMemoryState' attribute is no longer in use, " +
+         "instead please make sure all instances of this named cache in the cluster have 'fetchInMemoryState' attribute enabled", id = 178)
+   void alwaysProvideInMemoryStateDeprecated();
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'initialRetryWaitTime' attribute is no longer in use.", id = 179)
+   void initialRetryWaitTimeDeprecated();
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'logFlushTimeout' attribute is no longer in use.", id = 180)
+   void logFlushTimeoutDeprecated();
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'maxProgressingLogWrites' attribute is no longer in use.", id = 181)
+   void maxProgressingLogWritesDeprecated();
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'numRetries' attribute is no longer in use.", id = 182)
+   void numRetriesDeprecated();
+
+   @LogMessage(level = WARN)
+   @Message(value = "stateRetrieval's 'retryWaitTimeIncreaseFactor' attribute is no longer in use.", id = 183)
+   void retryWaitTimeIncreaseFactorDeprecated();
+
+   @LogMessage(level = INFO)
+   @Message(value = "The stateRetrieval configuration element has been deprecated, " +
+         "we're assuming you meant stateTransfer. Please see XML schema for more information.", id = 184)
+   void stateRetrievalConfigurationDeprecaced();
+
 }
