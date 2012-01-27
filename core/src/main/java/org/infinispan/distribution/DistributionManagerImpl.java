@@ -141,6 +141,10 @@ public class DistributionManagerImpl implements DistributionManager {
       return getConsistentHash().locate(key, getReplCount());
    }
 
+   public Address getPrimaryLocation(Object key) {
+      return getConsistentHash().primaryLocation(key);
+   }
+
    public Map<Object, List<Address>> locateAll(Collection<Object> keys) {
       return locateAll(keys, getReplCount());
    }

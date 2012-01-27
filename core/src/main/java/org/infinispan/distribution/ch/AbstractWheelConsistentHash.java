@@ -122,6 +122,7 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
          }
       }
 
+      log.debugf("Using %d virtualNodes to initialize consistent hash wheel ", numVirtualNodes);
       log.tracef("Positions are: %s", positions);
 
       // then populate caches, positionKeys and positionValues with the correct values (and in the correct order)
@@ -150,11 +151,11 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
    }
 
    @Override
-   public Set<Address> getCaches() {
+   public final Set<Address> getCaches() {
       return caches;
    }
 
-   protected int getPositionIndex(int normalizedHash) {
+   protected final int getPositionIndex(int normalizedHash) {
       int index = Arrays.binarySearch(positionKeys, normalizedHash);
       // Arrays.binarySearch returns (-(insertion point) - 1) when the value is not found
       // we need (insertion point) instead
@@ -170,7 +171,7 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
    /**
     * Creates an iterator over the positions "map" starting at the index specified by the <code>normalizedHash</code>.
     */
-   protected Iterator<Address> getPositionsIterator(final int normalizedHash) {
+   protected final Iterator<Address> getPositionsIterator(final int normalizedHash) {
       final int startIndex = getPositionIndex(normalizedHash);
       return new Iterator<Address>() {
          int i = startIndex;
@@ -201,7 +202,7 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
    }
 
    @Override
-   public List<Integer> getHashIds(Address a) {
+   public final List<Integer> getHashIds(Address a) {
       // Not the most efficient way of doing this but it's usage it's so far
       // limited to the HotRod server and it does it only on once on startup,
       // so there's no urgency in finding a better way to implement this.
@@ -229,11 +230,11 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
          return hashIds;
    }
 
-   public int getNormalizedHash(Object key) {
+   public final int getNormalizedHash(final Object key) {
       return Util.getNormalizedHash(key, hashFunction);
    }
 
-   protected boolean isVirtualNodesEnabled() {
+   public final boolean isVirtualNodesEnabled() {
       return numVirtualNodes > 1;
    }
 
@@ -250,6 +251,12 @@ public abstract class AbstractWheelConsistentHash extends AbstractConsistentHash
       }
       sb.append("}");
       return sb.toString();
+   }
+
+   @Override
+   public final Address primaryLocation(final Object key) {
+      final int normalizedHash = getNormalizedHash(getGrouping(key));
+      return positionValues[getPositionIndex(normalizedHash)];
    }
 
 
