@@ -56,24 +56,23 @@ public class LegacyConfigurationAdaptor {
                .consistentHashClass(config.clustering().hash().consistentHash().getClass());
       
       }
-      if (config.clustering().hash().activated) {
-         if (config.clustering().hash().hash() != null) {
-            legacy.clustering()
-               .hash()
-                  .hashFunctionClass(config.clustering().hash().hash().getClass());
-         }
 
+      if (config.clustering().hash().hash() != null) {
          legacy.clustering()
             .hash()
-               .numOwners(config.clustering().hash().numOwners())
-               .numVirtualNodes(config.clustering().hash().numVirtualNodes())
-               .rehashEnabled(config.clustering().hash().rehashEnabled())
-               .rehashRpcTimeout(config.clustering().hash().rehashRpcTimeout())
-               .rehashWait(config.clustering().hash().rehashWait())
-               .groups()
-                  .enabled(config.clustering().hash().groups().enabled())
-                  .groupers(config.clustering().hash().groups().groupers());
+               .hashFunctionClass(config.clustering().hash().hash().getClass());
       }
+
+      legacy.clustering()
+         .hash()
+            .numOwners(config.clustering().hash().numOwners())
+            .numVirtualNodes(config.clustering().hash().numVirtualNodes())
+            .rehashEnabled(config.clustering().hash().rehashEnabled())
+            .rehashRpcTimeout(config.clustering().hash().rehashRpcTimeout())
+            .rehashWait(config.clustering().hash().rehashWait())
+            .groups()
+               .enabled(config.clustering().hash().groups().enabled())
+               .groupers(config.clustering().hash().groups().groupers());
 
       if (config.clustering().l1().activated && config.clustering().l1().enabled()) {
          legacy.clustering()
