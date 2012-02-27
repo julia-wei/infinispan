@@ -34,4 +34,33 @@ public class RecoveryConfiguration {
       return recoveryInfoCacheName;
    }
 
+   @Override
+   public String toString() {
+      return "RecoveryConfiguration{" +
+            "enabled=" + enabled +
+            ", recoveryInfoCacheName='" + recoveryInfoCacheName + '\'' +
+            '}';
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      RecoveryConfiguration that = (RecoveryConfiguration) o;
+
+      if (enabled != that.enabled) return false;
+      if (recoveryInfoCacheName != null ? !recoveryInfoCacheName.equals(that.recoveryInfoCacheName) : that.recoveryInfoCacheName != null)
+         return false;
+
+      return true;
+   }
+
+   @Override
+   public int hashCode() {
+      int result = (enabled ? 1 : 0);
+      result = 31 * result + (recoveryInfoCacheName != null ? recoveryInfoCacheName.hashCode() : 0);
+      return result;
+   }
+
 }

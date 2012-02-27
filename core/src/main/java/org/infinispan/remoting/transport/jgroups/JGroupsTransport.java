@@ -24,6 +24,7 @@ package org.infinispan.remoting.transport.jgroups;
 
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.remote.ClusteredGetCommand;
 import org.infinispan.config.parsing.XmlConfigHelper;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.jmx.JmxUtil;
@@ -38,6 +39,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.FileLookupFactory;
 import org.infinispan.util.TypedProperties;
 import org.infinispan.util.Util;
+import org.infinispan.util.concurrent.ConcurrentMapFactory;
 import org.infinispan.util.concurrent.TimeoutException;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -60,10 +62,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -97,7 +99,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
 
    static final Log log = LogFactory.getLog(JGroupsTransport.class);
    static final boolean trace = log.isTraceEnabled();
-   final ConcurrentMap<String, StateTransferMonitor> stateTransfersInProgress = new ConcurrentHashMap<String, StateTransferMonitor>();
+   final ConcurrentMap<String, StateTransferMonitor> stateTransfersInProgress = ConcurrentMapFactory.makeConcurrentMap();
 
    protected boolean startChannel = true, stopChannel = true;
    private CommandAwareRpcDispatcher dispatcher;
@@ -292,6 +294,7 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       MarshallerAdapter adapter = new MarshallerAdapter(marshaller);
       dispatcher.setRequestMarshaller(adapter);
       dispatcher.setResponseMarshaller(adapter);
+      dispatcher.start();
    }
 
    // This is per CM, so the CL in use should be the CM CL
@@ -433,12 +436,12 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
 
       if (trace)
          log.tracef("dests=%s, command=%s, mode=%s, timeout=%s", recipients, rpcCommand, mode, timeout);
-
+      Address self = getAddress();
       if (mode.isSynchronous() && recipients != null && !getMembers().containsAll(recipients)) {
          if (mode == ResponseMode.SYNCHRONOUS)
             throw new SuspectException("One or more nodes have left the cluster while replicating command " + rpcCommand);
          else { // SYNCHRONOUS_IGNORE_LEAVERS || WAIT_FOR_VALID_RESPONSE
-            recipients = new ArrayList<Address>(recipients);
+            recipients = new HashSet<Address>(recipients);
             recipients.retainAll(getMembers());
          }
       }
@@ -446,28 +449,68 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       if (!usePriorityQueue && (ResponseMode.SYNCHRONOUS == mode || ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS == mode))
          usePriorityQueue = true;
 
-      boolean broadcast = recipients == null || recipients.size() == members.size();
-      RspList<Object> rsps = dispatcher.invokeRemoteCommands(toJGroupsAddressList(recipients), rpcCommand, toJGroupsMode(mode), timeout, recipients != null, usePriorityQueue,
-               toJGroupsFilter(responseFilter), supportReplay, asyncMarshalling, broadcast);
+      List<org.jgroups.Address> jgAddressList = toJGroupsAddressListExcludingSelf(recipients);
+      int membersSize = members.size();
+      boolean broadcast = jgAddressList == null || recipients.size() == membersSize;
+      if (membersSize < 3 || (jgAddressList != null && jgAddressList.size() < 2)) broadcast = false;
+      RspList<Object> rsps = null;
+      Response singleResponse = null;
+      org.jgroups.Address singleJGAddress = null;
+
+      if (broadcast) {
+         rsps = dispatcher.broadcastRemoteCommands(rpcCommand, toJGroupsMode(mode), timeout, recipients != null,
+                                                   usePriorityQueue, toJGroupsFilter(responseFilter), supportReplay,
+                                                   asyncMarshalling);
+      } else {         
+         if (jgAddressList == null || !jgAddressList.isEmpty()) {
+            boolean singleRecipient = jgAddressList != null && jgAddressList.size() == 1;
+            boolean skipRpc = false;
+            if (jgAddressList == null) {
+               ArrayList<Address> others = new ArrayList<Address>(members);
+               others.remove(self);
+               skipRpc = others.isEmpty();
+               singleRecipient = others.size() == 1;
+               if (singleRecipient) singleJGAddress = toJGroupsAddress(others.get(0));
+            }
+            if (!skipRpc) {
+               if (singleRecipient) {
+                  if (singleJGAddress == null) singleJGAddress = jgAddressList.get(0);
+                  singleResponse = dispatcher.invokeRemoteCommand(singleJGAddress, rpcCommand, toJGroupsMode(mode), timeout,
+                                                                  usePriorityQueue, supportReplay, asyncMarshalling);
+               } else {
+                  rsps = dispatcher.invokeRemoteCommands(jgAddressList, rpcCommand, toJGroupsMode(mode), timeout,
+                                                         recipients != null, usePriorityQueue, toJGroupsFilter(responseFilter),
+                                                         supportReplay, asyncMarshalling);
+               }
+            }
+         }
+      }
 
       if (mode.isAsynchronous())
          return Collections.emptyMap();// async case
 
-      // short-circuit no-return-value calls.
-      if (rsps == null)
-         return Collections.emptyMap();
-      Map<Address, Response> retval = new HashMap<Address, Response>(rsps.size());
+      Map<Address, Response> responses;
+      if (rsps == null) {
+         if (singleJGAddress == null || (singleResponse == null && rpcCommand instanceof ClusteredGetCommand)) {
+            responses = Collections.emptyMap();
+         } else {
+            responses = Collections.singletonMap(fromJGroupsAddress(singleJGAddress), singleResponse);
+         }
+      } else {      
+         Map<Address, Response> retval = new HashMap<Address, Response>(rsps.size());
 
-      boolean ignoreLeavers = mode == ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS || mode == ResponseMode.WAIT_FOR_VALID_RESPONSE;
-      boolean noValidResponses = true;
-      for (Rsp<Object> rsp : rsps.values()) {
-         noValidResponses &= parseResponseAndAddToResponseList(rsp.getValue(), rsp.getException(), retval, rsp.wasSuspected(), rsp.wasReceived(), fromJGroupsAddress(rsp.getSender()),
+         boolean ignoreLeavers = mode == ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS || mode == ResponseMode.WAIT_FOR_VALID_RESPONSE;
+         boolean noValidResponses = true;
+         for (Rsp<Object> rsp : rsps.values()) {
+            noValidResponses &= parseResponseAndAddToResponseList(rsp.getValue(), rsp.getException(), retval, rsp.wasSuspected(), rsp.wasReceived(), fromJGroupsAddress(rsp.getSender()),
                   responseFilter != null, ignoreLeavers);
-      }
+         }
 
-      if (noValidResponses)
-         throw new TimeoutException("Timed out waiting for valid responses!");
-      return retval;
+         if (noValidResponses)
+            throw new TimeoutException("Timed out waiting for valid responses!");
+         responses = retval;
+      }
+      return responses;
    }
 
    private static org.jgroups.blocks.ResponseMode toJGroupsMode(ResponseMode mode) {
@@ -548,12 +591,10 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
       if (hasNotifier) {
          Notify n;
          if (newView instanceof MergeView) {
-            if (log.isInfoEnabled())
-               log.receivedMergedView(newView);
+            log.receivedMergedView(newView);
             n = new NotifyMerge();
          } else {
-            if (log.isInfoEnabled())
-               log.receivedClusterView(newView);
+            log.receivedClusterView(newView);
             n = new NotifyViewChange();
          }
 
@@ -591,15 +632,22 @@ public class JGroupsTransport extends AbstractTransport implements MembershipLis
          return new JGroupsAddress(addr);
    }
 
-   private static List<org.jgroups.Address> toJGroupsAddressList(Collection<Address> list) {
+   private List<org.jgroups.Address> toJGroupsAddressListExcludingSelf(Collection<Address> list) {
       if (list == null)
          return null;
       if (list.isEmpty())
          return Collections.emptyList();
 
-      List<org.jgroups.Address> retval = new LinkedList<org.jgroups.Address>();
-      for (Address a : list)
-         retval.add(toJGroupsAddress(a));
+      List<org.jgroups.Address> retval = new ArrayList<org.jgroups.Address>(list.size());
+      boolean ignoreSelf = true;
+      Address self = getAddress();
+      for (Address a : list) {
+         if (!ignoreSelf || !a.equals(self)) {
+            retval.add(toJGroupsAddress(a));
+         } else {
+            ignoreSelf = false; // short circuit address equality for future iterations
+         }
+      }
 
       return retval;
    }

@@ -49,4 +49,32 @@ public class IndexingConfiguration extends AbstractTypedPropertiesConfiguration 
       return super.properties();
    }
 
+   @Override
+   public String toString() {
+      return "IndexingConfiguration{" +
+            "enabled=" + enabled +
+            ", indexLocalOnly=" + indexLocalOnly +
+            '}';
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      IndexingConfiguration that = (IndexingConfiguration) o;
+
+      if (enabled != that.enabled) return false;
+      if (indexLocalOnly != that.indexLocalOnly) return false;
+
+      return true;
+   }
+
+   @Override
+   public int hashCode() {
+      int result = (enabled ? 1 : 0);
+      result = 31 * result + (indexLocalOnly ? 1 : 0);
+      return result;
+   }
+
 }

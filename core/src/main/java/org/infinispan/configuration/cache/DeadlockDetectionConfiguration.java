@@ -27,5 +27,33 @@ public class DeadlockDetectionConfiguration {
    public boolean enabled() {
       return enabled;
    }
-   
+
+   @Override
+   public String toString() {
+      return "DeadlockDetectionConfiguration{" +
+            "enabled=" + enabled +
+            ", spinDuration=" + spinDuration +
+            '}';
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      DeadlockDetectionConfiguration that = (DeadlockDetectionConfiguration) o;
+
+      if (enabled != that.enabled) return false;
+      if (spinDuration != that.spinDuration) return false;
+
+      return true;
+   }
+
+   @Override
+   public int hashCode() {
+      int result = (enabled ? 1 : 0);
+      result = 31 * result + (int) (spinDuration ^ (spinDuration >>> 32));
+      return result;
+   }
+
 }

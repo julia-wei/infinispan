@@ -1,5 +1,6 @@
 package org.infinispan.configuration.global;
 
+import org.infinispan.config.ConfigurationException;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.remoting.transport.jgroups.JGroupsTransport;
 import org.infinispan.util.TypedProperties;
@@ -148,7 +149,9 @@ public class TransportConfigurationBuilder extends AbstractGlobalConfigurationBu
    
    @Override
    void validate() {
-      // No-op, no validation required
+      if(clusterName == null){
+          throw new ConfigurationException("Transport clusterName cannot be null");
+      }
    }
    
    @Override
@@ -179,4 +182,61 @@ public class TransportConfigurationBuilder extends AbstractGlobalConfigurationBu
    public Transport getTransport() {
       return transport;
    }
+
+   @Override
+   public String toString() {
+      return "TransportConfigurationBuilder{" +
+            "clusterName='" + clusterName + '\'' +
+            ", machineId='" + machineId + '\'' +
+            ", rackId='" + rackId + '\'' +
+            ", siteId='" + siteId + '\'' +
+            ", distributedSyncTimeout=" + distributedSyncTimeout +
+            ", transport=" + transport +
+            ", nodeName='" + nodeName + '\'' +
+            ", properties=" + properties +
+            ", strictPeerToPeer=" + strictPeerToPeer +
+            '}';
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+
+      TransportConfigurationBuilder that = (TransportConfigurationBuilder) o;
+
+      if (distributedSyncTimeout != that.distributedSyncTimeout) return false;
+      if (strictPeerToPeer != that.strictPeerToPeer) return false;
+      if (clusterName != null ? !clusterName.equals(that.clusterName) : that.clusterName != null)
+         return false;
+      if (machineId != null ? !machineId.equals(that.machineId) : that.machineId != null)
+         return false;
+      if (nodeName != null ? !nodeName.equals(that.nodeName) : that.nodeName != null)
+         return false;
+      if (properties != null ? !properties.equals(that.properties) : that.properties != null)
+         return false;
+      if (rackId != null ? !rackId.equals(that.rackId) : that.rackId != null)
+         return false;
+      if (siteId != null ? !siteId.equals(that.siteId) : that.siteId != null)
+         return false;
+      if (transport != null ? !transport.equals(that.transport) : that.transport != null)
+         return false;
+
+      return true;
+   }
+
+   @Override
+   public int hashCode() {
+      int result = clusterName != null ? clusterName.hashCode() : 0;
+      result = 31 * result + (machineId != null ? machineId.hashCode() : 0);
+      result = 31 * result + (rackId != null ? rackId.hashCode() : 0);
+      result = 31 * result + (siteId != null ? siteId.hashCode() : 0);
+      result = 31 * result + (int) (distributedSyncTimeout ^ (distributedSyncTimeout >>> 32));
+      result = 31 * result + (transport != null ? transport.hashCode() : 0);
+      result = 31 * result + (nodeName != null ? nodeName.hashCode() : 0);
+      result = 31 * result + (properties != null ? properties.hashCode() : 0);
+      result = 31 * result + (strictPeerToPeer ? 1 : 0);
+      return result;
+   }
+
 }

@@ -1229,4 +1229,38 @@ public class TestingUtil {
       }
    }
 
+   /**
+    * Invoke a task using a cache manager. This method guarantees that the
+    * cache manager used in the task will be cleaned up after the task has
+    * completed, regardless of the task outcome.
+    *
+    * @param c task to execute
+    * @throws Exception if the task fails somehow
+    */
+   public static void withCacheManager(CacheManagerCallable c)
+            throws Exception {
+      try {
+         c.call();
+      } finally {
+         TestingUtil.killCacheManagers(c.cm);
+      }
+   }
+
+   /**
+    * Invoke a task using a several cache managers. This method guarantees
+    * that the cache managers used in the task will be cleaned up after the
+    * task has completed, regardless of the task outcome.
+    *
+    * @param c task to execute
+    * @throws Exception if the task fails somehow
+    */
+   public static void withCacheManagers(MultiCacheManagerCallable c)
+            throws Exception {
+      try {
+         c.call();
+      } finally {
+         TestingUtil.killCacheManagers(c.cms);
+      }
+   }
+
 }
