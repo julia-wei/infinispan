@@ -22,10 +22,8 @@
  */
 package org.infinispan.tx.dld;
 
-import org.infinispan.config.Configuration;
 import org.infinispan.test.PerCacheExecutorThread;
 import org.infinispan.test.TestingUtil;
-import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.concurrent.locks.DeadlockDetectingLockManager;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -42,7 +40,7 @@ public abstract class BaseDldPessimisticLockingTest extends BaseDldTest {
    protected DeadlockDetectingLockManager lm0;
    protected DeadlockDetectingLockManager lm1;
 
-   @BeforeMethod
+   @BeforeMethod(alwaysRun=true)
    public void beforeMethod() {
       ex0 = new PerCacheExecutorThread(cache(0), 0);
       ex1 = new PerCacheExecutorThread(cache(1), 1);
@@ -53,7 +51,7 @@ public abstract class BaseDldPessimisticLockingTest extends BaseDldTest {
       lm1.setExposeJmxStats(true);
    }
 
-   @AfterMethod
+   @AfterMethod(alwaysRun=true)
    public void afterMethod() {
       ex0.stopThread();
       ex1.stopThread();
@@ -65,8 +63,8 @@ public abstract class BaseDldPessimisticLockingTest extends BaseDldTest {
 
       log.trace("Here is where the test starts");
 
-      ex0.execute(PerCacheExecutorThread.Operations.BEGGIN_TX);
-      ex1.execute(PerCacheExecutorThread.Operations.BEGGIN_TX);
+      ex0.execute(PerCacheExecutorThread.Operations.BEGIN_TX);
+      ex1.execute(PerCacheExecutorThread.Operations.BEGIN_TX);
 
 
       ex0.setKeyValue(k0, "v0_0");

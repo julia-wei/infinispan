@@ -506,10 +506,8 @@ public interface Log extends BasicLogger {
    void unprocessedTxLogEntries(int size);
 
    @LogMessage(level = WARN)
-   @Message(value = "Stopping, but there are transactions that did not finish in time: localTransactions=%s, remoteTransactions%s", id = 100)
-   void unfinishedTransactionsRemain(
-         ConcurrentMap<Transaction, LocalTransaction> localTransactions,
-         ConcurrentMap<GlobalTransaction, RemoteTransaction> remoteTransactions);
+   @Message(value = "Stopping, but there are %s local transactions and %s remote transactions that did not finish in time.", id = 100)
+   void unfinishedTransactionsRemain(int localTransactions, int remoteTransactions);
 
    @LogMessage(level = WARN)
    @Message(value = "Failed synchronization registration", id = 101)
@@ -764,7 +762,7 @@ public interface Log extends BasicLogger {
 
    @LogMessage(level = WARN)
    @Message(value = "FileCacheStore ignored an unexpected file %2$s in path %1$s. The store path should be dedicated!", id = 163)
-   void chacheLoaderIgnoringUnexpectedFile(String parentPath, String name);
+   void cacheLoaderIgnoringUnexpectedFile(Object parentPath, String name);
 
    @LogMessage(level = ERROR)
    @Message(value = "Rolling back to cache view %d, but last committed view is %d", id = 164)
@@ -805,11 +803,11 @@ public interface Log extends BasicLogger {
    @LogMessage(level = ERROR)
    @Message(value = "Custom interceptor %s has used @Inject, @Start or @Stop. These methods will not be processed.  Please extend org.infinispan.interceptors.base.BaseCustomInterceptor instead, and your custom interceptor will have access to a cache and cacheManager.  Override stop() and start() for lifecycle methods.", id = 173)
    void customInterceptorExpectsInjection(String customInterceptorFQCN);
-   
+
    @LogMessage(level = WARN)
    @Message(value = "Unexpected error reading configuration", id = 174)
    void errorReadingConfiguration(@Cause Exception e);
-   
+
    @LogMessage(level = WARN)
    @Message(value = "Unexpected error closing resource", id = 175)
    void failedToCloseResource(@Cause Throwable e);
@@ -817,7 +815,7 @@ public interface Log extends BasicLogger {
    @LogMessage(level = WARN)
    @Message(value = "The 'wakeUpInterval' attribute of the 'eviction' configuration XML element is deprecated. Setting the 'wakeUpInterval' attribute of the 'expiration' configuration XML element to %d instead", id = 176)
    void evictionWakeUpIntervalDeprecated(Long wakeUpInterval);
-   
+
    @LogMessage(level = WARN)
    @Message(value = "%s has been deprecated as a synonym for %s. Use one of %s instead", id = 177)
    void randomCacheModeSynonymsDeprecated(String candidate, String mode, List<String> synonyms);
@@ -850,6 +848,18 @@ public interface Log extends BasicLogger {
    @LogMessage(level = INFO)
    @Message(value = "The stateRetrieval configuration element has been deprecated, " +
          "we're assuming you meant stateTransfer. Please see XML schema for more information.", id = 184)
-   void stateRetrievalConfigurationDeprecaced();
+   void stateRetrievalConfigurationDeprecated();
+
+   @LogMessage(level = INFO)
+   @Message(value = "hash's 'rehashEnabled' attribute has been deprecated. Please use stateTransfer.fetchInMemoryState instead", id = 185)
+   void hashRehashEnabledDeprecated();
+
+   @LogMessage(level = INFO)
+   @Message(value = "hash's 'rehashRpcTimeout' attribute has been deprecated. Please use stateTransfer.timeout instead", id = 186)
+   void hashRehashRpcTimeoutDeprecated();
+
+   @LogMessage(level = INFO)
+   @Message(value = "hash's 'rehashWait' attribute has been deprecated. Please use stateTransfer.timeout instead", id = 187)
+   void hashRehashWaitDeprecated();
 
 }

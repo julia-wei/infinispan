@@ -55,6 +55,8 @@ public interface CacheTransaction {
 
    void putLookedUpEntry(Object key, CacheEntry e);
 
+   void putLookedUpEntries(Map<Object, CacheEntry> entries);
+
    void removeLookedUpEntry(Object key);
 
    void clearLookedUpEntries();
@@ -82,4 +84,8 @@ public interface CacheTransaction {
    EntryVersionsMap getUpdatedEntryVersions();
 
    void setUpdatedEntryVersions(EntryVersionsMap updatedEntryVersions);
+
+   boolean keyRead(Object key);
+
+   void addReadKey(Object key);
 }

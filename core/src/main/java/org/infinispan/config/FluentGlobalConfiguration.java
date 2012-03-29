@@ -32,6 +32,7 @@ import org.infinispan.lifecycle.ComponentStatus;
 import org.infinispan.marshall.AdvancedExternalizer;
 import org.infinispan.marshall.Marshaller;
 import org.infinispan.remoting.transport.Transport;
+import org.jboss.marshalling.ClassResolver;
 
 import java.util.Properties;
 
@@ -71,12 +72,6 @@ public class FluentGlobalConfiguration extends AbstractConfigurationBeanWithGCR 
        */
       SerializationConfig version(String marshallVersion);
 
-      /**
-       * TODO
-       *
-       * @param marshallVersion
-       * @return
-       */
       SerializationConfig version(short marshallVersion);
 
       /**
@@ -114,6 +109,13 @@ public class FluentGlobalConfiguration extends AbstractConfigurationBeanWithGCR 
        * @param advancedExternalizers
        */
       <T> SerializationConfig addAdvancedExternalizer(AdvancedExternalizer<T>... advancedExternalizers);
+
+      /**
+       * Class resolver to use when unmarshallig objects.
+       *
+       * @param classResolver
+       */
+      SerializationConfig classResolver(ClassResolver classResolver);
    }
 
    /**
@@ -145,12 +147,6 @@ public class FluentGlobalConfiguration extends AbstractConfigurationBeanWithGCR 
        */
       TransportConfig siteId(String siteId);
 
-      /**
-       * TODO
-       *
-       * @param distributedSyncTimeout
-       * @return
-       */
       TransportConfig distributedSyncTimeout(Long distributedSyncTimeout);
 
       /**
@@ -188,13 +184,6 @@ public class FluentGlobalConfiguration extends AbstractConfigurationBeanWithGCR 
        */
       TransportConfig strictPeerToPeer(Boolean strictPeerToPeer);
 
-      /**
-       * TODO
-       *
-       * @param key
-       * @param value
-       * @return
-       */
       TransportConfig addProperty(String key, String value);
    }
 

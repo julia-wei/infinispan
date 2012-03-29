@@ -56,41 +56,51 @@ public class LegacyConfigurationAdaptor {
                .consistentHashClass(config.clustering().hash().consistentHash().getClass());
       
       }
+      if (config.clustering().hash().activated) {
+         if (config.clustering().hash().hash() != null) {
+            legacy.clustering()
+               .hash()
+                  .hashFunctionClass(config.clustering().hash().hash().getClass());
+         }
 
-      if (config.clustering().hash().hash() != null) {
          legacy.clustering()
             .hash()
-               .hashFunctionClass(config.clustering().hash().hash().getClass());
+               .numOwners(config.clustering().hash().numOwners())
+               .numVirtualNodes(config.clustering().hash().numVirtualNodes())
+               .groups()
+                  .enabled(config.clustering().hash().groups().enabled())
+                  .groupers(config.clustering().hash().groups().groupers());
       }
 
-      legacy.clustering()
-         .hash()
-            .numOwners(config.clustering().hash().numOwners())
-            .numVirtualNodes(config.clustering().hash().numVirtualNodes())
-            .rehashEnabled(config.clustering().hash().rehashEnabled())
-            .rehashRpcTimeout(config.clustering().hash().rehashRpcTimeout())
-            .rehashWait(config.clustering().hash().rehashWait())
-            .groups()
-               .enabled(config.clustering().hash().groups().enabled())
-               .groupers(config.clustering().hash().groups().groupers());
-
+      if (config.clustering().cacheMode().isDistributed()) {
+         legacy.clustering()
+               .hash()
+               .rehashEnabled(config.clustering().stateTransfer().fetchInMemoryState())
+               .rehashRpcTimeout(config.clustering().stateTransfer().timeout())
+               .rehashWait(config.clustering().stateTransfer().timeout());
+      } else if (config.clustering().cacheMode().isClustered()) { // REPL or DIST
+         legacy.clustering()
+               .stateRetrieval()
+               .fetchInMemoryState(config.clustering().stateTransfer().fetchInMemoryState())
+               .timeout(config.clustering().stateTransfer().timeout());
+      }
       if (config.clustering().l1().activated && config.clustering().l1().enabled()) {
          legacy.clustering()
             .l1()
                .invalidationThreshold(config.clustering().l1().invalidationThreshold())
                .lifespan(config.clustering().l1().lifespan())
-               .onRehash(config.clustering().l1().onRehash());
+               .onRehash(config.clustering().l1().onRehash())
+               .cleanupTaskFrequency(config.clustering().l1().cleanupTaskFrequency());
       } else {
          legacy.clustering()
             .l1()
                .disable()
                .onRehash(false);
       }
-      
+
+      // We have only defined the chunkSize in the legacy stateRetrieval config, but we are using it in distributed mode as well
       legacy.clustering()
          .stateRetrieval()
-            .fetchInMemoryState(config.clustering().stateTransfer().fetchInMemoryState())
-            .timeout(config.clustering().stateTransfer().timeout())
             .chunkSize(config.clustering().stateTransfer().chunkSize());
       
       if (config.clustering().cacheMode().isSynchronous()) {
@@ -314,17 +324,28 @@ public class LegacyConfigurationAdaptor {
             .l1().enable()
                .invalidationThreshold(legacy.getL1InvalidationThreshold())
                .lifespan(legacy.getL1Lifespan())
-               .onRehash(legacy.isL1OnRehash());
+               .onRehash(legacy.isL1OnRehash())
+               .cleanupTaskFrequency(legacy.getL1InvalidationCleanupTaskFrequency());
       } else {
          builder.clustering()
             .l1()
                .disable();
       }
-      
+
+      if (legacy.getCacheMode().isDistributed()) {
+         builder.clustering()
+               .stateTransfer()
+               .fetchInMemoryState(legacy.isRehashEnabled())
+               .timeout(legacy.getRehashWaitTime());
+      } else if (legacy.getCacheMode().isClustered()) { // REPL or DIST
+         builder.clustering()
+               .stateTransfer()
+               .fetchInMemoryState(legacy.isFetchInMemoryState())
+               .timeout(legacy.getStateRetrievalTimeout());
+      }
+      // We use the chunkSize from stateRetrieval regardless of cache mode in the legacy configuration
       builder.clustering()
          .stateTransfer()
-            .fetchInMemoryState(legacy.isFetchInMemoryState())
-            .timeout(legacy.getStateRetrievalTimeout())
             .chunkSize(legacy.getStateRetrievalChunkSize());
 
       if (legacy.getCacheMode().isSynchronous()) {

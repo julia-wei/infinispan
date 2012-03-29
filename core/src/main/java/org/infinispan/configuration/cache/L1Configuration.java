@@ -11,14 +11,16 @@ public class L1Configuration {
    private final int invalidationThreshold;
    private final long lifespan;
    private final boolean onRehash;
+   private final long cleanupTaskFrequency;
    // For use by the LegacyConfigurationAdapter
    final boolean activated;
 
-   L1Configuration(boolean enabled, int invalidationThreshold, long lifespan, boolean onRehash, boolean activated) {
+   L1Configuration(boolean enabled, int invalidationThreshold, long lifespan, boolean onRehash, long cleanupTaskFrequency, boolean activated) {
       this.enabled = enabled;
       this.invalidationThreshold = invalidationThreshold;
       this.lifespan = lifespan;
       this.onRehash = onRehash;
+      this.cleanupTaskFrequency = cleanupTaskFrequency;
       this.activated = activated;
    }
 
@@ -45,7 +47,15 @@ public class L1Configuration {
    }
 
    /**
-    * Maximum lifespan of an entry placed in the L1 cache.
+    * Determines how often a cleanup thread runs to clean up an internal log of requestors for a specific key
+    */
+   public long cleanupTaskFrequency() {
+      return cleanupTaskFrequency;
+   }
+
+
+   /**
+    * Maximum lifespan of an entry placed in the L1 cache. Default 10 minutes.
     */
    public long lifespan() {
       return lifespan;
@@ -53,7 +63,7 @@ public class L1Configuration {
 
    /**
     * If true, entries removed due to a rehash will be moved to L1 rather than being removed
-    * altogether.
+    * altogether. Enabled by default.
     */
    public boolean onRehash() {
       return onRehash;
@@ -67,6 +77,7 @@ public class L1Configuration {
             ", invalidationThreshold=" + invalidationThreshold +
             ", lifespan=" + lifespan +
             ", onRehash=" + onRehash +
+            ", cleanupTaskFrequency=" + cleanupTaskFrequency +
             '}';
    }
 
@@ -82,6 +93,7 @@ public class L1Configuration {
       if (invalidationThreshold != that.invalidationThreshold) return false;
       if (lifespan != that.lifespan) return false;
       if (onRehash != that.onRehash) return false;
+      if (cleanupTaskFrequency != that.cleanupTaskFrequency) return false;
 
       return true;
    }
@@ -93,6 +105,7 @@ public class L1Configuration {
       result = 31 * result + (int) (lifespan ^ (lifespan >>> 32));
       result = 31 * result + (onRehash ? 1 : 0);
       result = 31 * result + (activated ? 1 : 0);
+      result = 31 * result + (int) (cleanupTaskFrequency ^ (cleanupTaskFrequency >>> 32));
       return result;
    }
 

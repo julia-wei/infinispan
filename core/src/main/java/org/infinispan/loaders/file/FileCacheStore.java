@@ -96,7 +96,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
    protected void loopOverBuckets(BucketHandler handler) throws CacheLoaderException {
       try {
          File[] listFiles;
-         if (root != null && (listFiles = root.listFiles()) != null) {
+         if (root != null && (listFiles = root.listFiles(NUMERIC_NAMED_FILES_FILTER)) != null) {
             for (File bucketFile : listFiles) {
                Bucket bucket = loadBucket(bucketFile);
                if (handler.handle(bucket)) {
@@ -156,9 +156,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
    @Override
    protected void toStreamLockSafe(ObjectOutput objectOutput) throws CacheLoaderException {
       try {
-         File[] files = root.listFiles();
-         if (files == null)
-            throw new CacheLoaderException("Root not directory or IO error occurred");
+         File[] files = listFilesStrict(root, NUMERIC_NAMED_FILES_FILTER);
 
          objectOutput.writeInt(files.length);
          byte[] buffer = new byte[streamBufferSize];
@@ -196,12 +194,13 @@ public class FileCacheStore extends BucketBasedCacheStore {
 
    @Override
    protected void clearLockSafe() throws CacheLoaderException {
-      File[] toDelete = root.listFiles();
+      File[] toDelete = root.listFiles(NUMERIC_NAMED_FILES_FILTER);
       if (toDelete == null) {
          return;
       }
       for (File f : toDelete) {
-         if (!deleteFile(f)) {
+         deleteFile(f);
+         if (f.exists()) {
             log.problemsRemovingFile(f);
          }
       }
@@ -216,9 +215,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
    protected void purgeInternal() throws CacheLoaderException {
       if (trace) log.trace("purgeInternal()");
 
-      File[] files = root.listFiles(new NumericNamedFilesFilter());
-      if (files == null)
-         throw new CacheLoaderException("Root not directory or IO error occurred");
+      File[] files = listFilesStrict(root, NUMERIC_NAMED_FILES_FILTER);
 
       for (final File bucketFile : files) {
          if (multiThreadedPurge) {
@@ -248,23 +245,22 @@ public class FileCacheStore extends BucketBasedCacheStore {
     */
    private boolean doPurge(File bucketFile) {
       Integer bucketKey = Integer.valueOf(bucketFile.getName());
-      boolean lockAcquired = false;
       boolean interrupted = false;
       try {
+         lockForReading(bucketKey);
          Bucket bucket = loadBucket(bucketFile);
 
          if (bucket != null) {
             if (bucket.removeExpiredEntries()) {
-               lockForWriting(bucketKey);
-               lockAcquired = true;
+               upgradeLock(bucketKey);
+               updateBucket(bucket);
             }
-            updateBucket(bucket);
          } else {
             // Bucket may be an empty 0-length file
             if (bucketFile.exists() && bucketFile.length() == 0) {
-               lockForWriting(bucketKey);
-               lockAcquired = true;
-               if (!bucketFile.delete())
+               upgradeLock(bucketKey);
+               fileSync.deleteFile(bucketFile);
+               if (bucketFile.exists())
                   log.info("Unable to remove empty file " + bucketFile + " - will try again later.");
             }
          }
@@ -273,9 +269,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
       } catch (CacheLoaderException e) {
          log.problemsPurgingFile(bucketFile, e);
       } finally {
-         if (lockAcquired) {
-            unlock(bucketKey);
-         }
+         unlock(bucketKey);
       }
       return !interrupted;
    }
@@ -388,7 +382,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
             fileSync = new PeriodicFileSync(config.getFsyncInterval());
             break;
       }
-      
+
       log.debugf("Using %s file sync mode", fsyncMode);
    }
 
@@ -402,11 +396,11 @@ public class FileCacheStore extends BucketBasedCacheStore {
       return loadBucket(getLockFromKey(key));
    }
 
-   private boolean deleteFile(File f) {
+   private void deleteFile(File f) {
       if (trace) {
          log.tracef("Really delete file %s", f);
       }
-      return f.delete();
+      fileSync.deleteFile(f);
    }
 
    private boolean purgeFile(File f) {
@@ -442,6 +436,33 @@ public class FileCacheStore extends BucketBasedCacheStore {
          }
       }
       return o;
+   }
+
+   /**
+    * Returns an array of abstract pathnames denoting the files and
+    * directories in the directory denoted by the given file abstract pathname
+    * that satisfy the specified filter.
+    *
+    * @param f abstract pathname
+    * @param filter file filter
+    * @return a non-null list of pathnames which could be empty
+    * @throws CacheLoaderException is thrown if the list returned by
+    * {@link File#listFiles(java.io.FilenameFilter)} is null
+    */
+   private File[] listFilesStrict(File f, FilenameFilter filter) throws CacheLoaderException {
+      File[] files = f.listFiles(filter);
+      if (files == null) {
+         boolean exists = f.exists();
+         boolean isDirectory = f.isDirectory();
+         boolean canRead = f.canRead();
+         boolean canWrite = f.canWrite();
+         throw new CacheLoaderException(String.format(
+               "File %s is not directory or IO error occurred when listing " +
+               "files with filter %s [fileExists=%b, isDirector=%b, " +
+               "canRead=%b, canWrite=%b]",
+               f, filter, exists, isDirectory, canRead, canWrite));
+      }
+      return files;
    }
 
    /**
@@ -482,6 +503,7 @@ public class FileCacheStore extends BucketBasedCacheStore {
        */
       void stop();
 
+      void deleteFile(File f);
    }
 
    private static class BufferedFileSync implements FileSync {
@@ -490,8 +512,8 @@ public class FileCacheStore extends BucketBasedCacheStore {
       @Override
       public void write(byte[] bytes, File f) throws IOException {
          if (bytes.length == 0) {
-            // Short circuit
-            if (f.exists()) f.delete();
+            // Short circuit for deleting files
+            deleteFile(f);
             return;
          }
 
@@ -517,6 +539,17 @@ public class FileCacheStore extends BucketBasedCacheStore {
             }
          }
          channel.write(ByteBuffer.wrap(bytes));
+      }
+
+      @Override
+      public void deleteFile(File f) {
+         String path = f.getPath();
+         // First remove the channel from the map
+         FileChannel fc = streams.remove(path);
+         // Then close the channel (handles null params)
+         Util.close(fc);
+         // Now that the channel is closed we can delete the file
+         f.delete();
       }
 
       private FileChannel createChannel(File f) throws FileNotFoundException {
@@ -621,8 +654,9 @@ public class FileCacheStore extends BucketBasedCacheStore {
                fos = new FileOutputStream(f);
                fos.write(bytes);
                fos.flush();
-            } else if (f.exists()) {
-               f.delete();
+               fos.getChannel().force(true);
+            } else {
+               deleteFile(f);
             }
          } finally {
             if (fos != null)
@@ -637,32 +671,43 @@ public class FileCacheStore extends BucketBasedCacheStore {
 
       @Override
       public void purge(File f) throws IOException {
-         f.delete();
+         deleteFile(f);
       }
 
       @Override
       public void stop() {
          // No-op
       }
+
+      @Override
+      public void deleteFile(File f) {
+         f.delete();
+      }
    }
 
    /**
     * Makes sure that files opened are actually named as numbers (ignore all other files)
     */
-   private static class NumericNamedFilesFilter implements FilenameFilter {
-
+   public static class NumericNamedFilesFilter implements FilenameFilter {
       @Override
       public boolean accept(File dir, String name) {
-         try {
-            Integer.parseInt(name);
-            return true;
-         } catch (NumberFormatException nfe) {
-            log.chacheLoaderIgnoringUnexpectedFile(dir.getAbsolutePath(), name);
+         int l = name.length();
+         int s = name.charAt(0) == '-' ? 1 : 0;
+         if (l - s > 10) {
+            log.cacheLoaderIgnoringUnexpectedFile(dir, name);
             return false;
          }
+         for (int i = s; i < l; i++) {
+            char c = name.charAt(i);
+            if (c < '0' || c > '9') {
+               log.cacheLoaderIgnoringUnexpectedFile(dir, name);
+               return false;
+            }
+         }
+         return true;
       }
-
    }
 
+   public static final NumericNamedFilesFilter NUMERIC_NAMED_FILES_FILTER = new NumericNamedFilesFilter();
 
 }

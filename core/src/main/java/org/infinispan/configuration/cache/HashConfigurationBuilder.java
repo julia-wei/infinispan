@@ -44,7 +44,7 @@ public class HashConfigurationBuilder extends AbstractClusteringConfigurationChi
     * Number of cluster-wide replicas for each cache entry.
     */
    public HashConfigurationBuilder numOwners(int numOwners) {
-      if (numVirtualNodes < 1) throw new IllegalArgumentException("numOwners cannot be less than 1");
+      if (numOwners < 1) throw new IllegalArgumentException("numOwners cannot be less than 1");
       this.numOwners = numOwners;
       activated = true;
       return this;
@@ -93,7 +93,6 @@ public class HashConfigurationBuilder extends AbstractClusteringConfigurationChi
     */
    public HashConfigurationBuilder rehashEnabled(boolean enabled) {
       stateTransfer().fetchInMemoryState(enabled);
-      activated = true;
       return this;
    }
 
@@ -104,7 +103,6 @@ public class HashConfigurationBuilder extends AbstractClusteringConfigurationChi
     */
    public HashConfigurationBuilder rehashDisabled() {
       stateTransfer().fetchInMemoryState(false);
-      activated = true;
       return this;
    }
 
@@ -115,7 +113,6 @@ public class HashConfigurationBuilder extends AbstractClusteringConfigurationChi
    @Deprecated
    public HashConfigurationBuilder rehashRpcTimeout(long rehashRpcTimeout) {
       stateTransfer().timeout(rehashRpcTimeout);
-      activated = true;
       return this;
    }
 
@@ -156,7 +153,7 @@ public class HashConfigurationBuilder extends AbstractClusteringConfigurationChi
 
    @Override
    HashConfiguration create() {
-      // TODO stateTransfer().create() will create a duplicate StateTransferConfiguration instance
+      // TODO stateTransfer().create() will create a duplicate StateTransferConfiguration instance. That's ok as long as none of the stateTransfer settings are modifiable at runtime.
       return new HashConfiguration(consistentHash, hash, numOwners, numVirtualNodes,
             groupsConfigurationBuilder.create(), stateTransfer().create(), activated);
    }

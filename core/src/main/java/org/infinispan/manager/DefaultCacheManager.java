@@ -57,7 +57,6 @@ import org.infinispan.remoting.transport.Transport;
 import org.infinispan.util.FileLookupFactory;
 import org.infinispan.util.Immutables;
 import org.infinispan.util.ReflectionUtil;
-import org.infinispan.util.Util;
 import org.infinispan.util.concurrent.ConcurrentMapFactory;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -338,7 +337,7 @@ public class DefaultCacheManager implements EmbeddedCacheManager, CacheManager {
     * @throws java.io.IOException if there is a problem with the configuration file.
     */
    public DefaultCacheManager(String configurationFile, boolean start) throws IOException {
-      this(FileLookupFactory.newInstance().lookupFile(configurationFile, Thread.currentThread().getContextClassLoader()), start);
+      this(FileLookupFactory.newInstance().lookupFileStrict(configurationFile, Thread.currentThread().getContextClassLoader()), start);
    }
 
    /**
@@ -388,6 +387,36 @@ public class DefaultCacheManager implements EmbeddedCacheManager, CacheManager {
       if (start)
          start();
    }
+   
+   /**
+    * Constructs a new instance of the CacheManager, using the holder passed in to read configuration settings.
+    *
+    * @param holder holder containing configuration settings, to use as a template for all caches
+    *                            created
+    * @param start               if true, the cache manager is started
+    */
+   public DefaultCacheManager(ConfigurationBuilderHolder holder, boolean start) {
+      try {
+         globalConfiguration = LegacyGlobalConfigurationAdaptor.adapt(holder.getGlobalConfigurationBuilder().build());
+         globalConfiguration.accept(configurationValidator);
+         defaultConfiguration = LegacyConfigurationAdaptor.adapt(holder.getDefaultConfigurationBuilder().build());
+         
+         for (Entry<String, ConfigurationBuilder> entry : holder.getNamedConfigurationBuilders().entrySet()) {
+            org.infinispan.configuration.cache.Configuration c = entry.getValue().build();
+            Configuration legacy = LegacyConfigurationAdaptor.adapt(c);
+            configurationOverrides.put(entry.getKey(), legacy);
+         }
+         
+         globalComponentRegistry = new GlobalComponentRegistry(globalConfiguration, this, caches.keySet());
+         cacheCreateLock = new ReentrantLock();
+      } catch (ConfigurationException ce) {
+         throw ce;
+      } catch (RuntimeException re) {
+         throw new ConfigurationException(re);
+      }
+      if (start)
+         start();
+   }
 
    /**
     * Constructs a new instance of the CacheManager, using the two configuration file names passed in. The first file
@@ -406,14 +435,14 @@ public class DefaultCacheManager implements EmbeddedCacheManager, CacheManager {
                               boolean start) throws IOException {
       Parser parser = new Parser(Thread.currentThread().getContextClassLoader());
       
-      ConfigurationBuilderHolder globalConfigurationBuilderHolder = parser.parse(globalConfigurationFile);
-      ConfigurationBuilderHolder defaultConfigurationBuilderHolder = parser.parse(defaultConfigurationFile);
+      ConfigurationBuilderHolder globalConfigurationBuilderHolder = parser.parseFile(globalConfigurationFile);
+      ConfigurationBuilderHolder defaultConfigurationBuilderHolder = parser.parseFile(defaultConfigurationFile);
       
       globalConfiguration = LegacyGlobalConfigurationAdaptor.adapt(globalConfigurationBuilderHolder.getGlobalConfigurationBuilder().build());
       defaultConfiguration = LegacyConfigurationAdaptor.adapt(defaultConfigurationBuilderHolder.getDefaultConfigurationBuilder().build());
       
       if (namedCacheFile != null) {
-         ConfigurationBuilderHolder namedConfigurationBuilderHolder = parser.parse(namedCacheFile);
+         ConfigurationBuilderHolder namedConfigurationBuilderHolder = parser.parseFile(namedCacheFile);
          Entry<String, ConfigurationBuilder> entry = namedConfigurationBuilderHolder.getNamedConfigurationBuilders().entrySet().iterator().next();
          defineConfiguration(entry.getKey(), LegacyConfigurationAdaptor.adapt(entry.getValue().build()));
       }
@@ -564,7 +593,7 @@ public class DefaultCacheManager implements EmbeddedCacheManager, CacheManager {
          if (transport != null) {
             Configuration c = getConfiguration(cacheName);
             // Use sync replication timeout
-            transport.invokeRemotely(null, cmd, ResponseMode.SYNCHRONOUS, c.getSyncReplTimeout(), false, null, false);
+            transport.invokeRemotely(null, cmd, ResponseMode.SYNCHRONOUS, c.getSyncReplTimeout(), false, null);
          }
          // Once sent to the cluster, remove the local cache
          cmd.perform(null);

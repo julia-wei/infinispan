@@ -75,7 +75,8 @@ import static org.infinispan.config.Configuration.CacheMode.*;
  * Encapsulates the configuration of a Cache. Configures the default cache which can be retrieved via
  * CacheManager.getCache(). These default settings are also used as a starting point when configuring namedCaches, since
  * the default settings are inherited by any named cache.
- *
+ * <p />
+ * @deprecated This class is deprecated.  Use {@link org.infinispan.configuration.cache.Configuration} instead.
  * @author <a href="mailto:manik@jboss.org">Manik Surtani (manik@jboss.org)</a>
  * @author Vladimir Blagojevic
  * @author Galder Zamarreño
@@ -169,6 +170,9 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       // ensure the correct isolation level upgrades and/or downgrades are performed.
       switch (locking.isolationLevel) {
          case NONE:
+            if (clustering.mode.isClustered())
+               locking.isolationLevel = IsolationLevel.READ_COMMITTED;
+            break;
          case READ_UNCOMMITTED:
             locking.isolationLevel = IsolationLevel.READ_COMMITTED;
             break;
@@ -1506,6 +1510,7 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       transaction.accept(v);
       unsafe.accept(v);
       indexing.accept(v);
+      versioning.accept(v);
    }
 
    /**
@@ -1728,6 +1733,14 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
 
    public boolean isHashActivated() {
       return clustering.hash.activated;
+   }
+
+   public long getL1InvalidationCleanupTaskFrequency() {
+      return clustering.l1.getL1InvalidationCleanupTaskFrequency();
+   }
+
+   public void setL1InvalidationCleanupTaskFrequency(long frequencyMillis) {
+      clustering.l1.setL1InvalidationCleanupTaskFrequency(frequencyMillis);
    }
 
    /**
@@ -3770,6 +3783,10 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
       
       @ConfigurationDocRef(bean = Configuration.class, targetElement = "setL1InvalidationThreshold")
       protected Integer invalidationThreshold = 0;
+
+      @ConfigurationDocRef(bean = Configuration.class, targetElement = "setL1InvalidationReaperThreadFrequency")
+      protected Long frequency = 600000L;
+
       @XmlTransient
       public boolean activated = false;
 
@@ -3812,6 +3829,25 @@ public class Configuration extends AbstractNamedCacheConfigurationBean {
          activate();
          this.lifespan = lifespan;
          return this;
+      }
+
+      /**
+       * @deprecated The visibility of this will be reduced, use {@link #invalidationReaperThreadFrequency(Long)}
+       */
+      @Deprecated
+      public L1Config setL1InvalidationCleanupTaskFrequency(long frequencyMillis) {
+         testImmutability("frequency");
+         this.frequency = frequencyMillis;
+         return this;
+      }
+
+      public L1Config cleanupTaskFrequency(Long frequencyMillis) {
+         return setL1InvalidationCleanupTaskFrequency(frequencyMillis);
+      }
+
+      @XmlAttribute (name = "cleanupTaskFrequency")
+      public Long getL1InvalidationCleanupTaskFrequency() {
+         return frequency;
       }
 
       @Override

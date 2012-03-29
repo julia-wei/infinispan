@@ -25,14 +25,10 @@ package org.infinispan.server.core.transport
 
 import org.jboss.netty.buffer.{ChannelBuffers, ChannelBuffer}
 
-/**
- * // TODO: Document this
- * @author Galder Zamarreño
- * @since // TODO
- */
 object ExtendedChannelBuffer {
 
    def wrappedBuffer(array: Array[Byte]*) = ChannelBuffers.wrappedBuffer(array : _*)
+   def buffer(capacity: Int) = ChannelBuffers.buffer(capacity)
    def dynamicBuffer = ChannelBuffers.dynamicBuffer()
 
    def readUnsignedShort(bf: ChannelBuffer): Int = bf.readUnsignedShort
