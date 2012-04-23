@@ -70,8 +70,7 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
     * Construction only allowed through this factory method.  This factory is intended for use internally by the
     * CacheDelegate.  User code should use {@link AtomicMapLookup#getAtomicMap(Cache, Object)}.
     */
-   @SuppressWarnings("unchecked")
-   public static <K, V> AtomicHashMap<K, V> newInstance(Cache cache, Object cacheKey) {
+   public static <K, V> AtomicHashMap<K, V> newInstance(Cache<Object, Object> cache, Object cacheKey) {
       AtomicHashMap<K, V> value = new AtomicHashMap<K, V>();
       Object oldValue = cache.putIfAbsent(cacheKey, value);
       if (oldValue != null) value = (AtomicHashMap<K, V>) oldValue;
@@ -91,43 +90,53 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
       copied = isCopy;
    }
 
+   @Override
    public void commit() {
       copied = false;
       delta = null;
    }
 
+   @Override
    public int size() {
       return delegate.size();
    }
 
+   @Override
    public boolean isEmpty() {
       return delegate.isEmpty();
    }
 
+   @Override
    public boolean containsKey(Object key) {
       return delegate.containsKey(key);
    }
 
+   @Override
    public boolean containsValue(Object value) {
       return delegate.containsValue(value);
    }
 
+   @Override
    public V get(Object key) {
       return delegate.get(key);
    }
 
+   @Override
    public Set<K> keySet() {
       return delegate.keySet();
    }
 
+   @Override
    public Collection<V> values() {
       return delegate.values();
    }
 
+   @Override
    public Set<Entry<K, V>> entrySet() {
       return delegate.entrySet();
    }
 
+   @Override
    public V put(K key, V value) {
       V oldValue = delegate.put(key, value);
       PutOperation<K, V> op = new PutOperation<K, V>(key, oldValue, value);
@@ -135,6 +144,7 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
       return oldValue;
    }
 
+   @Override
    @SuppressWarnings("unchecked")
    public V remove(Object key) {
       V oldValue = delegate.remove(key);
@@ -143,11 +153,13 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
       return oldValue;
    }
 
+   @Override
    public void putAll(Map<? extends K, ? extends V> t) {
       // this is crappy - need to do this more efficiently!
       for (Entry<? extends K, ? extends V> e : t.entrySet()) put(e.getKey(), e.getValue());
    }
 
+   @Override
    @SuppressWarnings("unchecked")
    public void clear() {
       FastCopyHashMap<K, V> originalEntries = (FastCopyHashMap<K, V>) delegate.clone();
@@ -160,7 +172,7 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
     * Builds a thread-safe proxy for this instance so that concurrent reads are isolated from writes.
     * @return an instance of AtomicHashMapProxy
     */
-   AtomicHashMapProxy<K, V> getProxy(AdvancedCache cache, Object mapKey, boolean fineGrained, FlagContainer flagContainer) {
+   AtomicHashMapProxy<K, V> getProxy(AdvancedCache<Object, Object> cache, Object mapKey, boolean fineGrained, FlagContainer flagContainer) {
       // construct the proxy lazily
       if (proxy == null)  // DCL is OK here since proxy is volatile (and we live in a post-JDK 5 world)
       {
@@ -180,6 +192,7 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
       removed = b;
    }
 
+   @Override
    public Delta delta() {
       Delta toReturn = delta == null ? NullDelta.INSTANCE : delta;
       delta = null; // reset
@@ -232,7 +245,7 @@ public class AtomicHashMap<K, V> implements AtomicMap<K, V>, DeltaAware, Cloneab
       @Override
       @SuppressWarnings("unchecked")
       public AtomicHashMap readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         FastCopyHashMap delegate = (FastCopyHashMap) input.readObject();
+         FastCopyHashMap<?, ?> delegate = (FastCopyHashMap<?, ?>) input.readObject();
          return new AtomicHashMap(delegate);
       }
 

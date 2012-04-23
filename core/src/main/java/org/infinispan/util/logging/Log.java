@@ -32,9 +32,7 @@ import org.infinispan.loaders.bucket.Bucket;
 import org.infinispan.loaders.decorators.SingletonStore;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.transport.Address;
-import org.infinispan.statetransfer.StateTransferException;
 import org.infinispan.transaction.LocalTransaction;
-import org.infinispan.transaction.RemoteTransaction;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryAwareRemoteTransaction;
 import org.infinispan.transaction.xa.recovery.RecoveryAwareTransaction;
@@ -51,7 +49,6 @@ import javax.management.MBeanRegistrationException;
 import javax.management.ObjectName;
 import javax.naming.NamingException;
 import javax.transaction.Synchronization;
-import javax.transaction.Transaction;
 import javax.transaction.TransactionManager;
 import javax.transaction.xa.XAException;
 import java.io.File;
@@ -62,7 +59,6 @@ import java.nio.channels.FileChannel;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.jboss.logging.Logger.Level.*;
@@ -486,15 +482,11 @@ public interface Log extends BasicLogger {
    void receivedClusterView(View newView);
 
    @LogMessage(level = ERROR)
-   @Message(value = "Caught while responding to state transfer request", id = 95)
-   void errorGeneratingState(@Cause StateTransferException e);
-
-   @LogMessage(level = ERROR)
    @Message(value = "Caught while requesting or applying state", id = 96)
    void errorRequestingOrApplyingState(@Cause Exception e);
 
    @LogMessage(level = ERROR)
-   @Message(value = "Error while processing 1PC PrepareCommand", id = 97)
+   @Message(value = "Error while processing a prepare in a single-phase transaction", id = 97)
    void errorProcessing1pcPrepareCommand(@Cause Throwable e);
 
    @LogMessage(level = ERROR)
@@ -646,7 +638,7 @@ public interface Log extends BasicLogger {
    @Message(value = "Attempted to register listener of class %s, but no valid, " +
          "public methods annotated with method-level event annotations found! " +
          "Ignoring listener.", id = 133)
-   void noAnnotateMethodsFoundInListener(Class listenerClass);
+   void noAnnotateMethodsFoundInListener(Class<?> listenerClass);
 
    @LogMessage(level = WARN)
    @Message(value = "Unable to invoke method %s on Object instance %s - " +
@@ -862,4 +854,7 @@ public interface Log extends BasicLogger {
    @Message(value = "hash's 'rehashWait' attribute has been deprecated. Please use stateTransfer.timeout instead", id = 187)
    void hashRehashWaitDeprecated();
 
+   @LogMessage(level = ERROR)
+   @Message(value = "Error while processing a commit in a two-phase transaction", id = 188)
+   void errorProcessing2pcCommitCommand(@Cause Throwable e);
 }
