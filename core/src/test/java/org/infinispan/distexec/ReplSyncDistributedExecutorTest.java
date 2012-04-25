@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source
- * Copyright 2010 Red Hat Inc. and/or its affiliates and other
+ * Copyright 2011 Red Hat Inc. and/or its affiliates and other
  * contributors as indicated by the @author tags. All rights reserved.
  * See the copyright.txt in the distribution for a full listing of
  * individual contributors.
@@ -20,30 +20,28 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.infinispan.server.memcached
+package org.infinispan.distexec;
 
-import org.testng.annotations.Test
-import org.infinispan.manager.DefaultCacheManager
-import org.testng.Assert._
-import org.infinispan.server.core.test.Stoppable
+import org.infinispan.configuration.cache.CacheMode;
+import org.testng.annotations.Test;
 
 /**
- * Memcached server unit test.
- *
- * @author Galder Zamarreño
- * @since 4.1
+ * Tests org.infinispan.distexec.DistributedExecutorService in REPL_SYNC mode
+ * 
+ * @author Vladimir Blagojevic
  */
-@Test(groups = Array("functional"), testName = "server.memcached.MemcachedServerTest")
-class MemcachedServerTest {
+@Test(groups = "functional", testName = "distexec.ReplSyncDistributedExecutorTest")
+public class ReplSyncDistributedExecutorTest extends DistributedExecutorTest {
 
-   def testValidateProtocolServerNullProperties {
-      Stoppable.useCacheManager(new DefaultCacheManager) { cm =>
-         Stoppable.useServer(new MemcachedServer) { server =>
-            server.start(null, cm)
-            assertEquals(server.getHost, "127.0.0.1")
-            assertEquals(server.getPort, 11211)
-         }
-      }
+   public ReplSyncDistributedExecutorTest() {
+      cleanup = CleanupPhase.AFTER_TEST;
+   }
+  
+   protected String cacheName() {
+      return "DistributedExecutorTest-REPL_SYNC";
    }
 
+   protected CacheMode getCacheMode() {
+      return CacheMode.REPL_SYNC;
+   }
 }
