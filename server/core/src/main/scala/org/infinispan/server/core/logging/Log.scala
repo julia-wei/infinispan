@@ -41,9 +41,13 @@ trait Log {
 
    def error(msg: => String, t: Throwable) = log.errorf(t, msg)
 
+   def warn(msg: => String, t: Throwable) = log.warnf(t, msg)
+
    def debug(msg: => String) = log.debug(msg)
 
    def debug(msg: => String, param1: Any) = log.debugf(msg, param1)
+
+   def debug(t: Throwable, msg: => String) = log.debugf(t, msg)
 
    def debug(t: Throwable, msg: => String, param1: Any) = log.debugf(t, msg, param1)
 
@@ -62,6 +66,9 @@ trait Log {
 
    def trace(msg: => String, param1: Any, param2: Any, param3: Any) =
       log.tracef(msg, param1, param2, param3)
+
+   def tracef(msg: => String, params: Any*) =
+      log.tracef(msg, params.map(_.asInstanceOf[AnyRef]) : _*)
 
    def isDebugEnabled = log.isDebugEnabled
 

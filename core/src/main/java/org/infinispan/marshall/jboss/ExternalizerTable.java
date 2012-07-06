@@ -53,6 +53,7 @@ import org.infinispan.container.entries.versioned.VersionedTransientCacheEntry;
 import org.infinispan.container.entries.versioned.VersionedTransientCacheValue;
 import org.infinispan.container.entries.versioned.VersionedTransientMortalCacheEntry;
 import org.infinispan.container.entries.versioned.VersionedTransientMortalCacheValue;
+import org.infinispan.context.Flag;
 import org.infinispan.distribution.RemoteTransactionLogDetails;
 import org.infinispan.distribution.ch.DefaultConsistentHash;
 import org.infinispan.distribution.ch.TopologyAwareConsistentHash;
@@ -202,6 +203,7 @@ public class ExternalizerTable implements ObjectTable {
                      readerIndex), new InterruptedException());
             } else if (gcr.getStatus().isStopping() || gcr.getStatus().isTerminated()) {
                log.tracef("Cache manager is shutting down and type (id=%d) cannot be resolved (thread not interrupted)", readerIndex);
+               return null; // Temporary measure until AS7-3180 is fixed
             } else {
                throw new CacheException(String.format(
                      "Cache manager is %s and type (id=%d) cannot be resolved (thread not interrupted)",
@@ -295,6 +297,8 @@ public class ExternalizerTable implements ObjectTable {
 
       addInternalExternalizer(new CacheView.Externalizer());
       addInternalExternalizer(new LockInfo.Externalizer());
+
+      addInternalExternalizer(new Flag.Externalizer());
    }
 
    void addInternalExternalizer(AdvancedExternalizer<?> ext) {

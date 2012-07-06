@@ -183,13 +183,12 @@ public class InconsistentIndexesAfterRestartTest extends AbstractInfinispanTest 
     }
 
     @BeforeClass
-    @Parameters( { "basedir" })
-    protected void setUpTempDir(@Optional(value = "/tmp") String basedir) {
-       TMP_DIR = TestingUtil.tmpDirectory(basedir, this);
+    protected void setUpTempDir() {
+       TMP_DIR = TestingUtil.tmpDirectory(this);
        new File(TMP_DIR).mkdirs();
     }
 
-    @AfterClass
+    @AfterClass(alwaysRun = true)
     protected void clearTempDir() {
        TestingUtil.recursiveFileRemove(TMP_DIR);
     }

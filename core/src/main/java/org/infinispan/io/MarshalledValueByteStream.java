@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2012 Red Hat, Inc. and/or its affiliates.
  *
  * This is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as
@@ -17,26 +17,21 @@
  * 02110-1301 USA
  */
 
-package org.infinispan.marshall;
+package org.infinispan.io;
+
+
+import java.io.OutputStream;
 
 /**
- * Factory class for retrieving {@link BufferSizePredictor} instances.
+ * A stream of bytes which can be written to, and the underlying byte array can be directly accessed.
  *
- * @author Galder Zamarreño
+ * @author Manik Surtani
  * @since 5.1
  */
-public class BufferSizePredictorFactory {
+public abstract class MarshalledValueByteStream extends OutputStream {
 
-   private static final ThreadLocal<BufferSizePredictor> bufferSizePredictorTL =
-      new ThreadLocal<BufferSizePredictor>() {
-         @Override
-         protected BufferSizePredictor initialValue() {
-            return new AdaptiveBufferSizePredictor();
-         }
-      };
+   public abstract int size();
 
-   public static BufferSizePredictor getBufferSizePredictor() {
-      return bufferSizePredictorTL.get();
-   }
+   public abstract byte[] getRaw();
 
 }

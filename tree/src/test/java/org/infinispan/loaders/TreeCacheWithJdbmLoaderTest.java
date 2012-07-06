@@ -50,12 +50,11 @@ public class TreeCacheWithJdbmLoaderTest extends TreeCacheWithLoaderTest {
    }
 
    @BeforeClass
-   @Parameters({"basedir"})
-   protected void setUpTempDir(@Optional("/tmp") String basedir) {
-      tmpDirectory = TestingUtil.tmpDirectory(basedir, this);
+   protected void setUpTempDir() {
+      tmpDirectory = TestingUtil.tmpDirectory(this);
    }
 
-   @AfterClass
+   @AfterClass(alwaysRun = true)
    protected void clearTempDir() {
       TestingUtil.recursiveFileRemove(tmpDirectory);
       new File(tmpDirectory).mkdirs();

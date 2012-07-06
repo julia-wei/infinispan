@@ -47,7 +47,7 @@ import static junit.framework.Assert.assertEquals;
  * @author Mircea.Markus@jboss.com
  * @since 4.1
  */
-public class BaseKeyAffinityServiceTest extends BaseDistFunctionalTest {
+public abstract class BaseKeyAffinityServiceTest extends BaseDistFunctionalTest {
 
    protected ThreadFactory threadFactory = new ThreadFactory() {
       public Thread newThread(Runnable r) {
@@ -57,7 +57,7 @@ public class BaseKeyAffinityServiceTest extends BaseDistFunctionalTest {
    protected ExecutorService executor  = Executors.newSingleThreadExecutor(threadFactory);
    protected KeyAffinityServiceImpl<Object> keyAffinityService;
 
-   @AfterTest
+   @AfterTest(alwaysRun = true)
    public void stopExecutorService() throws InterruptedException {
       keyAffinityService.stop();
       executor.shutdown();

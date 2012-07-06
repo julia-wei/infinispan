@@ -23,6 +23,27 @@
 
 package org.infinispan.test;
 
+import static java.io.File.separator;
+
+import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
+
+import javax.management.ObjectName;
+import javax.transaction.Status;
+import javax.transaction.TransactionManager;
+
 import org.infinispan.AdvancedCache;
 import org.infinispan.Cache;
 import org.infinispan.CacheImpl;
@@ -62,31 +83,11 @@ import org.jgroups.protocols.DISCARD;
 import org.jgroups.protocols.TP;
 import org.jgroups.stack.ProtocolStack;
 
-import javax.management.ObjectName;
-import javax.transaction.Status;
-import javax.transaction.TransactionManager;
-import java.io.File;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
-
-import static java.io.File.separator;
-
 public class TestingUtil {
 
    private static final Log log = LogFactory.getLog(TestingUtil.class);
    private static final Random random = new Random();
-   public static final String TEST_PATH = "target" + separator + "tempFiles";
+   public static final String TEST_PATH = "infinispanTempFiles";
    public static final String INFINISPAN_START_TAG = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<infinispan\n" +
            "      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
            "      xsi:schemaLocation=\"urn:infinispan:config:5.1 http://www.infinispan.org/schemas/infinispan-config-5.1.xsd\"\n" +
@@ -156,7 +157,7 @@ public class TestingUtil {
       // give it 1 second to start rehashing
       // TODO Should look at the last committed view instead and check if it contains all the caches
       LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-      int gracetime = 30000; // 30 seconds?
+      int gracetime = 120000; // 120 seconds?
       long giveup = System.currentTimeMillis() + gracetime;
       for (Cache c : caches) {
          CacheViewsManager cacheViewsManager = TestingUtil.extractGlobalComponent(c.getCacheManager(), CacheViewsManager.class);
@@ -1118,20 +1119,17 @@ public class TestingUtil {
    }
 
    /**
-    * Creates a path to a temp directory based on a base directory and a test.
+    * Creates a path to a unique (per test) temporary directory.
+    * By default, the directory is created in the platform's temp directory, but the location
+    * can be overridden with the {@code infinispan.test.tmpdir} system property.
     *
-    * @param basedir may be null, if relative directories are to be used.
-    * @param test    test that requires this directory.
+    * @param test  test that requires this directory.
     *
-    * @return a path, relative or absolute.
+    * @return an absolute path
     */
-   public static String tmpDirectory(String basedir, AbstractInfinispanTest test) {
-      String prefix = "";
-      if (basedir != null) {
-         prefix = basedir;
-         if (!prefix.endsWith(separator)) prefix += separator;
-      }
-      return prefix + TEST_PATH + separator + test.getClass().getSimpleName();
+   public static String tmpDirectory(AbstractInfinispanTest test) {
+      String prefix = System.getProperty("infinispan.test.tmpdir", System.getProperty("java.io.tmpdir"));
+      return prefix + separator + TEST_PATH + separator + test.getClass().getSimpleName();
    }
 
    public static String k(Method method, int index) {

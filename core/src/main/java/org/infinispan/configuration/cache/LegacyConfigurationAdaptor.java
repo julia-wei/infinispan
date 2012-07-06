@@ -158,6 +158,8 @@ public class LegacyConfigurationAdaptor {
          
       if (config.invocationBatching().enabled())
          legacy.invocationBatching();
+      else
+         legacy.invocationBatching().disable();
 
       if (config.jmxStatistics().enabled())
          legacy.jmxStatistics();
@@ -479,7 +481,11 @@ public class LegacyConfigurationAdaptor {
          .transactionSynchronizationRegistryLookup(legacy.getTransactionSynchronizationRegistryLookup())
          .useEagerLocking(legacy.isUseEagerLocking())
          .useSynchronization(legacy.isUseSynchronizationForTransactions());
-      
+
+      builder.versioning()
+            .enabled(legacy.isEnableVersioning())
+            .scheme(legacy.getVersioningScheme());
+
       builder.transaction().recovery().enabled(legacy.isTransactionRecoveryEnabled());
         
       builder.unsafe().unreliableReturnValues(legacy.isUnsafeUnreliableReturnValues());

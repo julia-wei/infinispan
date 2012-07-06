@@ -53,7 +53,7 @@ public class CassandraCacheStoreTest extends BaseCacheStoreTest {
       embedded.setup();
    }
 
-   @AfterClass
+   @AfterClass(alwaysRun = true)
    public static void cleanup() throws IOException {
       EmbeddedServerHelper.teardown();
       embedded = null;
@@ -75,6 +75,12 @@ public class CassandraCacheStoreTest extends BaseCacheStoreTest {
    @Test(expectedExceptions = UnsupportedKeyTypeException.class)
    public void testLoadAndStoreMarshalledValues() throws CacheLoaderException {
       super.testLoadAndStoreMarshalledValues();
+   }
+
+   @Test(enabled = false, description = "See ISPN-2085")
+   @Override
+   public void testOnePhaseCommit() throws CacheLoaderException {
+      super.testOnePhaseCommit();
    }
 
 }

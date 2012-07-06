@@ -45,6 +45,9 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static org.infinispan.test.TestingUtil.*;
+import static org.infinispan.client.hotrod.test.HotRodClientTestingUtil.*;
+
 /**
  * @author Mircea Markus
  */
@@ -99,12 +102,12 @@ public class ConsistentHashV1IntegrationTest extends MultipleCacheManagersTest {
       }
    }
 
-   @AfterMethod
+   @AfterMethod(alwaysRun = true)
    @Override
    protected void clearContent() throws Throwable {
    }
 
-   @AfterTest
+   @AfterTest(alwaysRun = true)
    public void cleanUp() {
       ex.shutdownNow();
       kas.stop();
@@ -119,11 +122,7 @@ public class ConsistentHashV1IntegrationTest extends MultipleCacheManagersTest {
    }
 
    private void stopServer(HotRodServer hrs) {
-      try {
-         hrs.stop();
-      } catch (Exception e) {
-         //ignore
-      }
+      killServers(hrs);
    }
 
    public void testCorrectBalancingOfKeys() {

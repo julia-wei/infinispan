@@ -481,7 +481,10 @@ class MemcachedFunctionalTest extends MemcachedSingleNodeTest {
       assertClientError(resp)
    }
 
-   def testUnknownCommand = assertError(send("blah\r\n"))
+   def testUnknownCommand {
+      assertError(send("blah\r\n"))
+      assertError(send("blah boo poo goo zoo\r\n"))
+   }
 
    def testUnknownCommandPipelined {
       val responses = sendMulti("bogus\r\ndelete a\r\n", 2, true)
@@ -506,10 +509,10 @@ class MemcachedFunctionalTest extends MemcachedSingleNodeTest {
 
    def testFlagsIsUnsigned(m: Method) {
       val k = m.getName
-      assertClientError(send("set boo1 -1 0 0\r\n"))
-      assertStored(send("set " + k + " 4294967295 0 0\r\n"))
-      assertClientError(send("set boo2 4294967296 0 0\r\n"))
-      assertClientError(send("set boo2 18446744073709551615 0 0\r\n"))
+      assertClientError(send("set boo1 -1 0 0\r\n\r\n"))
+      assertStored(send("set " + k + " 4294967295 0 0\r\n\r\n"))
+      assertClientError(send("set boo2 4294967296 0 0\r\n\r\n"))
+      assertClientError(send("set boo2 18446744073709551615 0 0\r\n\r\n"))
    }
 
    def testIncrDecrIsUnsigned(m: Method) {
