@@ -31,6 +31,13 @@ import org.infinispan.context.InvocationContext;
  */
 public class XSiteStateRequestCommand implements ReplicableCommand {
 
+    private final String cacheName;
+    private final String siteName;
+
+    public XSiteStateRequestCommand(String siteName, String cacheName) {
+        this.siteName = siteName;
+        this.cacheName = cacheName;
+    }
 
     @Override
     public Object perform(InvocationContext ctx) throws Throwable {
