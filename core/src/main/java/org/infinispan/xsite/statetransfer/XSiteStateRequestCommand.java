@@ -25,6 +25,7 @@ package org.infinispan.xsite.statetransfer;
 
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.remoting.transport.Address;
 
 /**
  *
@@ -33,10 +34,12 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     private final String cacheName;
     private final String siteName;
+    private Address senderAddress;
 
-    public XSiteStateRequestCommand(String siteName, String cacheName) {
+    public XSiteStateRequestCommand(String siteName, String cacheName, Address address) {
         this.siteName = siteName;
         this.cacheName = cacheName;
+        this.senderAddress = address;
     }
 
     @Override
