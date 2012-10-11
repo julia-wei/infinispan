@@ -22,19 +22,49 @@
  */
 
 package org.infinispan.xsite.statetransfer;
+import org.infinispan.Cache;
+import org.infinispan.factories.GlobalComponentRegistry;
+import org.infinispan.factories.annotations.ComponentName;
+import org.infinispan.factories.annotations.Inject;
+import org.infinispan.remoting.transport.Transport;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+
+import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 
 /**
  *
  */
 public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager {
 
+   private Transport transport;
+   private ExecutorService asyncTransportExecutor;
+   private GlobalComponentRegistry gcr;
+   private String cacheName;
+
+
+  @Inject
+   public void inject(Transport transport,
+                      @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor,
+                      GlobalComponentRegistry gcr,
+                      Cache cache) {
+      this.transport = transport;
+      this.asyncTransportExecutor = asyncTransportExecutor;
+      this.gcr = gcr;
+      cacheName = cache.getName();
+   }
+
+
+
+
     @Override
     public void pushState(String siteName){
        //TODO get the list of all the caches running on the current node
-       List<String> cacheNames = getCacheNamesForCurrentNode();
+        
+       List<String> cacheNames = getCacheNamesForCurrentNode(gcr);
        for(String cacheName: cacheNames) {
            pushState(siteName, cacheName);
        }
@@ -45,7 +75,9 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
 
     }
 
-    private List<String> getCacheNamesForCurrentNode()  {
+    private List<String> getCacheNamesForCurrentNode( GlobalComponentRegistry gcr)  {
+        //TODO is there some way to get the caches from the GlobalcomponentRegistr
+        //gcr.get
         return Collections.unmodifiableList(new ArrayList<String>());
     }
 }
