@@ -94,7 +94,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     }
 
     private XSiteStateRequestCommand buildCommand(String siteName, String cacheName, Address address) {
-        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, cacheName, address);
+        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_TRANSACTION_TRANSFER);
         return xSiteStateRequestCommand;
     }
 

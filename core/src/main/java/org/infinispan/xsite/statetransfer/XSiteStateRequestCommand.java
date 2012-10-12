@@ -23,47 +23,98 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 /**
  *
  */
 public class XSiteStateRequestCommand implements ReplicableCommand {
 
-    private final String cacheName;
-    private final String siteName;
-    private Address senderAddress;
+    private static final Log log = LogFactory.getLog(XSiteStateRequestCommand.class);
 
-    public XSiteStateRequestCommand(String siteName, String cacheName, Address address) {
+    public enum Type {
+        START_XSITE_STATE_TRANSFER,
+        START_XSITE_TRANSACTION_TRANSFER
+
+    }
+    //TODO Not sure about this one
+    public static final byte COMMAND_ID = 15;
+
+    private Type type;
+    private String cacheName;
+    private String siteName;
+    private Address origin;
+    private XSiteStateProvider xSiteStateProvider;
+
+
+    public XSiteStateRequestCommand(String siteName, String cacheName, Address address, Type type) {
         this.siteName = siteName;
         this.cacheName = cacheName;
-        this.senderAddress = address;
+        this.origin = address;
+        this.type = type;
+    }
+
+    @Inject
+    public void init(XSiteStateProvider xSiteStateProvider) {
+        this.xSiteStateProvider = xSiteStateProvider;
     }
 
     @Override
     public Object perform(InvocationContext ctx) throws Throwable {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        final boolean trace = log.isTraceEnabled();
+        LogFactory.pushNDC(cacheName, trace);
+        try {
+            switch (type) {
+                case START_XSITE_TRANSACTION_TRANSFER:
+                    return xSiteStateProvider.getTransactionsForCache(cacheName, siteName, origin);
+
+
+                default:
+                    throw new CacheException("Unknown state request command type: " + type);
+            }
+        } finally {
+            LogFactory.popNDC(trace);
+        }
+    }
+
+    public Address getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(Address origin) {
+        this.origin = origin;
     }
 
     @Override
     public byte getCommandId() {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return COMMAND_ID;
     }
 
     @Override
     public Object[] getParameters() {
-        return new Object[0];  //To change body of implemented methods use File | Settings | File Templates.
+        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, siteName};
     }
 
+
     @Override
+    @SuppressWarnings("unchecked")
     public void setParameters(int commandId, Object[] parameters) {
-        //To change body of implemented methods use File | Settings | File Templates.
+        int i = 0;
+        type = Type.values()[(Byte) parameters[i++]];
+        setOrigin((Address) parameters[i++]);
+        cacheName = (String) parameters[i++];
+        siteName = (String) parameters[i++];
+
     }
 
     @Override
     public boolean isReturnValueExpected() {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 }

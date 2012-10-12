@@ -24,7 +24,7 @@
 package org.infinispan.xsite.statetransfer;
 
 /**
- * 
+ *
  */
 
 public class XSiteOutBoundStateTransferTask {

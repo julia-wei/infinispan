@@ -29,13 +29,13 @@ import org.infinispan.context.InvocationContext;
 
 public class XSiteTransferCommand implements ReplicableCommand {
 
-   public enum Type {
+    public enum Type {
 
-      TRANSACTION_TRANSFERRED,
-      
-      STATE_TRANSFERRED,
+        TRANSACTION_TRANSFERRED,
 
-   }
+        STATE_TRANSFERRED,
+
+    }
 
     @Override
     public Object perform(InvocationContext ctx) throws Throwable {
