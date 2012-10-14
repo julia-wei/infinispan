@@ -24,19 +24,21 @@
 package org.infinispan.xsite.statetransfer;
 
 import org.infinispan.Cache;
+import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.remoting.responses.ExceptionResponse;
+import org.infinispan.remoting.responses.Response;
+import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -105,12 +107,12 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         return Collections.unmodifiableList(new ArrayList<String>());
     }
 
-    private Object executeOnClusterSync(final ReplicableCommand command, final int timeout)
+    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final int timeout)
             throws Exception {
         // first invoke remotely
-        Future<Object> remoteFuture = asyncTransportExecutor.submit(new Callable<Object>() {
+        Future<Map<Address, Response>> remoteFuture = asyncTransportExecutor.submit(new Callable<Map<Address, Response>>() {
             @Override
-            public Object call() throws Exception {
+            public Map<Address, Response> call() throws Exception {
                 return transport.invokeRemotely(null, command,
                         ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, timeout, true, null);
             }
@@ -129,8 +131,29 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
             }
         });
 
+
         // wait for the remote commands to finish
-        Object object = remoteFuture.get(timeout, TimeUnit.MILLISECONDS);
-        return object;
+        Map<Address, Response> responseMap = remoteFuture.get(timeout, TimeUnit.MILLISECONDS);
+
+        // parse the responses
+        Map<Address, Object> responseValues = new HashMap<Address, Object>(transport.getMembers().size());
+        for (Map.Entry<Address, Response> entry : responseMap.entrySet()) {
+            Address address = entry.getKey();
+            Response response = entry.getValue();
+            if (!response.isSuccessful()) {
+                Throwable cause = response instanceof ExceptionResponse ? ((ExceptionResponse) response).getException() : null;
+                throw new CacheException("Unsuccessful response received from node " + address + ": " + response, cause);
+            }
+            responseValues.put(address, ((SuccessfulResponse) response).getResponseValue());
+        }
+
+        // now wait for the local command
+        Response localResponse = (Response) localFuture.get(timeout, TimeUnit.MILLISECONDS);
+        if (!localResponse.isSuccessful()) {
+            throw new CacheException("Unsuccessful local response");
+        }
+        responseValues.put(transport.getAddress(), ((SuccessfulResponse) localResponse).getResponseValue());
+
+        return responseValues;
     }
 }
