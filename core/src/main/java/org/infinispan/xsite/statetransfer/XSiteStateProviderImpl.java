@@ -92,6 +92,10 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     }
 
+    private void pushTransacationsToXsite(List<TransactionInfo> transactionInfo) {
+
+    }
+
 
     private void collectTransactionsToTransfer(List<TransactionInfo> transactionsToTransfer,
                                                Collection<? extends CacheTransaction> transactions,
@@ -120,5 +124,20 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
             }
         }
     }
+
+    private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
+        //TODO implement any cleanup task here
+    }
+
+    public void onTaskCompletion(XSiteOutBoundStateTransferTask transferTask) {
+        if (trace) {
+            //TODO message regarding the cancellation or completion of state transfer task
+//          log.tracef("Removing %s outbound transfer of segments %s to %s",
+//                transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSegments(), transferTask.getDestination());
+        }
+
+        removeTransfer(transferTask);
+    }
+
 
 }

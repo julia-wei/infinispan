@@ -23,11 +23,20 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import java.util.List;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.remoting.transport.Address;
+import org.infinispan.statetransfer.TransactionInfo;
 
 
 public class XSiteTransferCommand implements ReplicableCommand {
+
+    private List<TransactionInfo> transactionInfo;
+    private Address origin;
+    private List<InternalCacheEntry> internalCacheEntries;
+    private String cacheName;
 
     public enum Type {
 
@@ -35,6 +44,14 @@ public class XSiteTransferCommand implements ReplicableCommand {
 
         STATE_TRANSFERRED,
 
+    }
+
+
+    public XSiteTransferCommand(Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<TransactionInfo> transactionInfo) {
+        this.origin = origin;
+        this.internalCacheEntries = internalCacheEntries;
+        this.cacheName = cacheName;
+        this.transactionInfo = transactionInfo;
     }
 
     @Override
