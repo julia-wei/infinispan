@@ -23,7 +23,6 @@
 
 package org.infinispan.xsite.statetransfer;
 
-import org.infinispan.commands.CommandsFactory;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -57,12 +56,9 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     private XSiteStateProviderImpl xSiteStateProvider;
 
-
     private final Address destination;
 
-
     private final Configuration configuration;
-
 
     private final DataContainer dataContainer;
 
@@ -70,7 +66,6 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     private final RpcManager rpcManager;
 
-    private final CommandsFactory commandsFactory;
 
     private final long timeout;
 
@@ -92,7 +87,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     public XSiteOutBoundStateTransferTask(Address destination,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
                                           CacheLoaderManager cacheLoaderManager, RpcManager rpcManager, Configuration configuration,
-                                          CommandsFactory commandsFactory, String cacheName, Address source, long timeout) {
+                                          String cacheName, Address source, long timeout) {
 
         if (destination == null) {
             throw new IllegalArgumentException("Destination address cannot be null");
@@ -107,7 +102,6 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         this.cacheLoaderManager = cacheLoaderManager;
         this.rpcManager = rpcManager;
         this.configuration = configuration;
-        this.commandsFactory = commandsFactory;
         this.timeout = timeout;
         this.cacheName = cacheName;
     }
@@ -190,6 +184,14 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
             return cacheLoaderManager.getCacheStore();
         }
         return null;
+    }
+
+    public Address getSource() {
+        return source;
+    }
+
+    public String getCacheName() {
+        return cacheName;
     }
 
 

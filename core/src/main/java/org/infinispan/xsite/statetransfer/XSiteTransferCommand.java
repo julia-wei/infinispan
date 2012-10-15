@@ -23,12 +23,13 @@
 
 package org.infinispan.xsite.statetransfer;
 
-import java.util.List;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.TransactionInfo;
+
+import java.util.List;
 
 
 public class XSiteTransferCommand implements ReplicableCommand {

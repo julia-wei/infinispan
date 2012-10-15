@@ -13,4 +13,6 @@ import java.util.List;
 @Scope(Scopes.NAMED_CACHE)
 public interface XSiteStateProvider {
     List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address);
+
+    void startXSiteStateTransfer(String siteName, String cacheName, Address origin);
 }
