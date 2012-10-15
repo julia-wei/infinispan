@@ -23,21 +23,28 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.TransactionInfo;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.util.List;
 
 
 public class XSiteTransferCommand implements ReplicableCommand {
 
+    private static final Log log = LogFactory.getLog(XSiteTransferCommand.class);
     private List<TransactionInfo> transactionInfo;
     private Address origin;
     private List<InternalCacheEntry> internalCacheEntries;
     private String cacheName;
+    private Type type;
+    private XSiteStateTransferReceiver xSiteStateTransferReceiver;
 
     public enum Type {
 
@@ -48,16 +55,36 @@ public class XSiteTransferCommand implements ReplicableCommand {
     }
 
 
-    public XSiteTransferCommand(Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<TransactionInfo> transactionInfo) {
+    public XSiteTransferCommand(Type type, Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<TransactionInfo> transactionInfo) {
         this.origin = origin;
         this.internalCacheEntries = internalCacheEntries;
         this.cacheName = cacheName;
         this.transactionInfo = transactionInfo;
+        this.type = type;
     }
+
+    @Inject
+    public void init(XSiteStateTransferReceiver xSiteStateTransferReceiver) {
+        this.xSiteStateTransferReceiver = xSiteStateTransferReceiver;
+    }
+
 
     @Override
     public Object perform(InvocationContext ctx) throws Throwable {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        final boolean trace = log.isTraceEnabled();
+        LogFactory.pushNDC(cacheName, trace);
+        try {
+            switch (type) {
+                case STATE_TRANSFERRED:
+                    return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
+
+
+                default:
+                    throw new CacheException("Unknown state request command type: " + type);
+            }
+        } finally {
+            LogFactory.popNDC(trace);
+        }
     }
 
     @Override
@@ -65,14 +92,59 @@ public class XSiteTransferCommand implements ReplicableCommand {
         return 0;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
+    public List<TransactionInfo> getTransactionInfo() {
+        return transactionInfo;
+    }
+
+    public Address getOrigin() {
+        return origin;
+    }
+
+    public List<InternalCacheEntry> getInternalCacheEntries() {
+        return internalCacheEntries;
+    }
+
+    public String getCacheName() {
+        return cacheName;
+    }
+
+    public Type getType() {
+        return type;
+    }
+
     @Override
     public Object[] getParameters() {
-        return new Object[0];  //To change body of implemented methods use File | Settings | File Templates.
+        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, internalCacheEntries, transactionInfo};
+    }
+
+    public void setTransactionInfo(List<TransactionInfo> transactionInfo) {
+        this.transactionInfo = transactionInfo;
+    }
+
+    public void setOrigin(Address origin) {
+        this.origin = origin;
+    }
+
+    public void setInternalCacheEntries(List<InternalCacheEntry> internalCacheEntries) {
+        this.internalCacheEntries = internalCacheEntries;
+    }
+
+    public void setCacheName(String cacheName) {
+        this.cacheName = cacheName;
+    }
+
+    public void setType(Type type) {
+        this.type = type;
     }
 
     @Override
     public void setParameters(int commandId, Object[] parameters) {
-        //To change body of implemented methods use File | Settings | File Templates.
+        int i = 0;
+        type = Type.values()[(Byte) parameters[i++]];
+        setOrigin((Address) parameters[i++]);
+        setCacheName((String) parameters[i++]);
+        setInternalCacheEntries((List<InternalCacheEntry>) parameters[i++]);
+        setTransactionInfo((List<TransactionInfo>) parameters[i++]);
     }
 
     @Override

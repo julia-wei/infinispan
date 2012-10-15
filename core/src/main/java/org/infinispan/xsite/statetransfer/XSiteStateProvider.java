@@ -14,5 +14,5 @@ import java.util.List;
 public interface XSiteStateProvider {
     List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address);
 
-    void startXSiteStateTransfer(String siteName, String cacheName, Address origin);
+    Object startXSiteStateTransfer(String siteName, String cacheName, Address origin);
 }

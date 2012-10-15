@@ -71,8 +71,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
         LogFactory.pushNDC(cacheName, trace);
         try {
             switch (type) {
-                case START_XSITE_TRANSACTION_TRANSFER:
-                    return xSiteStateProvider.getTransactionsForCache(cacheName, siteName, origin);
+                case START_XSITE_STATE_TRANSFER:
+                    return xSiteStateProvider.startXSiteStateTransfer(siteName, cacheName, origin);
 
 
                 default:

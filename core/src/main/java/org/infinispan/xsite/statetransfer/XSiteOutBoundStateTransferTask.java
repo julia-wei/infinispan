@@ -113,7 +113,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         runnableFuture = new FutureTask<Void>(this, null) {
             @Override
             protected void done() {
-                //stateProvider.onTaskCompletion(XSiteOutBoundStateTransferTask.this);
+
                 xSiteStateProvider.onTaskCompletion(XSiteOutBoundStateTransferTask.this);
             }
         };
@@ -198,7 +198,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private void sendEntries(List<InternalCacheEntry> listOfEntriesToSend) {
 
 
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(source, listOfEntriesToSend, cacheName, null);
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source, listOfEntriesToSend, cacheName, null);
 
         rpcManager.invokeRemotelyInFuture(Collections.singleton(destination), xSiteTransferCommand, false, sendFuture, timeout);
 

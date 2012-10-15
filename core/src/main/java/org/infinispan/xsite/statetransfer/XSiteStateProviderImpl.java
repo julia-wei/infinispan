@@ -95,10 +95,12 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
     @Override
-    public void startXSiteStateTransfer(String siteName, String cacheName, Address origin) {
+    public Object startXSiteStateTransfer(String siteName, String cacheName, Address origin) {
         List<TransactionInfo> transactions = getTransactionsForCache(siteName, cacheName, origin);
         //TODO need to push transactions to the Site
         startCacheStateTransfer(siteName, cacheName, origin);
+        //TODO need to determine what Object to return here
+        return null;
 
     }
 
@@ -192,14 +194,16 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
 
     private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
-        //TODO implement any cleanup task here
+        if (transferTask != null && !transfersBySite.isEmpty()) {
+            transfersBySite.remove(transferTask.getDestination());
+        }
     }
 
     public void onTaskCompletion(XSiteOutBoundStateTransferTask transferTask) {
         if (trace) {
             //TODO message regarding the cancellation or completion of state transfer task
-//          log.tracef("Removing %s outbound transfer of segments %s to %s",
-//                transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSegments(), transferTask.getDestination());
+            log.tracef("Removing outBoundXSiteTransferTask from the node %s to %s",
+                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getDestination());
         }
 
         removeTransfer(transferTask);

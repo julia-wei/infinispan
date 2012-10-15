@@ -23,8 +23,17 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import org.infinispan.container.entries.InternalCacheEntry;
+import org.infinispan.factories.scopes.Scope;
+import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.remoting.transport.Address;
+
+import java.util.Collection;
+
 /**
  *
  */
-public class XSiteStateTransferReceiver {
+@Scope(Scopes.NAMED_CACHE)
+public interface XSiteStateTransferReceiver {
+    public Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries);
 }
