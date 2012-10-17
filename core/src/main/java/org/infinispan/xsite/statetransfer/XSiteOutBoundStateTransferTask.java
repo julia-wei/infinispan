@@ -37,10 +37,7 @@ import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.FutureTask;
 
@@ -83,6 +80,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
      * The Future obtained from submitting this task to an executor service. This is used for cancellation.
      */
     private FutureTask runnableFuture;
+    private Set<Object> transferredKeys =  new HashSet<Object>();
 
     public XSiteOutBoundStateTransferTask(Address destination,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
@@ -162,7 +160,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
                 }
             }
 
-            // send the last chunk of all segments
+            // send all the entries in one shot
             sendEntries(listOfEntriesToSend);
         } catch (Throwable t) {
             // ignore eventual exceptions caused by cancellation (have InterruptedException as the root cause)
@@ -204,6 +202,14 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     }
 
+
+   private void calculateTransferredKeys (List<InternalCacheEntry> transferredEntries){
+      if(transferredEntries != null){
+          for(InternalCacheEntry ie: transferredEntries){
+             transferredKeys.add(ie.getKey()) ;
+          }
+      }
+   }
 
     /**
      * Cancel the whole task.

@@ -26,6 +26,8 @@ package org.infinispan.xsite.statetransfer;
 import org.infinispan.Cache;
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.configuration.cache.BackupConfiguration;
+import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
@@ -35,6 +37,7 @@ import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.rpc.ResponseMode;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
+import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -51,11 +54,16 @@ import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECU
  */
 public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager {
 
-    private static Log log = LogFactory.getLog(XSiteStateTransferManager.class);
+    private static Log log = LogFactory.getLog(XSiteStateTransferManagerImpl.class);
+    private static final boolean trace = log.isTraceEnabled();
     private Transport transport;
     private ExecutorService asyncTransportExecutor;
     private GlobalComponentRegistry gcr;
     private String cacheName;
+    private LocalTopologyManager localTopologyManager;
+    private Configuration config;
+    private BackupConfiguration bc;
+    private boolean xsiteTransferRunning;
 
 
     @Inject
@@ -67,21 +75,40 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         this.asyncTransportExecutor = asyncTransportExecutor;
         this.gcr = gcr;
         cacheName = cache.getName();
+        this.localTopologyManager = localTopologyManager;
+        this.config = cache.getCacheConfiguration();
     }
 
     @Override
     public void pushState(String siteName) {
-        //TODO get the list of all the caches running on the current node
 
-        List<String> cacheNames = getCacheNamesForCurrentNode(gcr);
-        for (String cacheName : cacheNames) {
-            pushState(siteName, cacheName);
-        }
+
+        pushState(siteName, cacheName);
+
 
     }
 
+    private BackupConfiguration getBackupConfigurationForSite(String siteName) {
+
+        for (BackupConfiguration bc : config.sites().inUseBackups()) {
+            if (bc.site().equals(siteName)) {
+                return bc;
+            }
+        }
+        return null;
+    }
+
+
     @Override
     public void pushState(String siteName, String cacheName) {
+        bc = getBackupConfigurationForSite(siteName);
+        if (bc == null) {
+            if (trace)
+                log.tracef("The current cache %s does not have any backup for the given site %s", cacheName, siteName);
+            //TODO do we need to throw an exception here
+        }
+        xsiteTransferRunning = true;
+
         Address address = transport.getAddress();
         XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(siteName, cacheName, address);
         //TODO that needs to come from somewhere
@@ -89,7 +116,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         //TODO return object to be determined
         //TODO Exception handling to be determined
         try {
-            Object object = executeOnClusterSync(xsiteStateRequestCommand, timeout);
+            Object object = executeOnClusterSync(xsiteStateRequestCommand, bc.replicationTimeout());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -107,7 +134,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         return Collections.unmodifiableList(new ArrayList<String>());
     }
 
-    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final int timeout)
+    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final long timeout)
             throws Exception {
         // first invoke remotely
         Future<Map<Address, Response>> remoteFuture = asyncTransportExecutor.submit(new Callable<Map<Address, Response>>() {
