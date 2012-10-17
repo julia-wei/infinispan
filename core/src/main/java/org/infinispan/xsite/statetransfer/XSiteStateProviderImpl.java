@@ -62,7 +62,8 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     private DataContainer dataContainer;
     private CacheLoaderManager cacheLoaderManager;
     private ExecutorService executorService;
-    long timeout;
+    private long timeout;
+    private int chunkSize;
     /**
      * A map that keeps track of current XSite state transfers by Site address.
      */
@@ -86,6 +87,8 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         this.dataContainer = dataContainer;
         this.cacheLoaderManager = cacheLoaderManager;
         this.executorService = executorService;
+        int chunkSize = configuration.clustering().stateTransfer().chunkSize();
+        this.chunkSize = chunkSize > 0 ? chunkSize : Integer.MAX_VALUE;
     }
 
     public boolean isStateTransferInProgress() {
@@ -111,7 +114,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         Address siteMasterAddress = null;
         //TODO need to get the timeout for the xsite state transfer
         timeout = configuration.clustering().stateTransfer().timeout();
-        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(siteMasterAddress, this, dataContainer, cacheLoaderManager, rpcManager, configuration, cacheName, origin, timeout);
+        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(siteMasterAddress, this, dataContainer, cacheLoaderManager, rpcManager, configuration, cacheName, origin, timeout, chunkSize);
         addXSiteStateTransfer(xSiteOutBoundStateTransferTask);
         xSiteOutBoundStateTransferTask.execute(executorService);
     }

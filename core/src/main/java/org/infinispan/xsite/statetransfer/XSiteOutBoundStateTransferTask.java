@@ -71,6 +71,13 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     private final String cacheName;
 
+    private final int xsiteTransferChunkSize;
+
+    private int accumulatedEntries;
+
+    private List<InternalCacheEntry> currentLoadOfEntries = new ArrayList<InternalCacheEntry>();
+
+
     /**
      * This is used with RpcManager.invokeRemotelyInFuture() to be able to cancel message sending if the task needs to be canceled.
      */
@@ -80,12 +87,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
      * The Future obtained from submitting this task to an executor service. This is used for cancellation.
      */
     private FutureTask runnableFuture;
-    private Set<Object> transferredKeys =  new HashSet<Object>();
+    private Set<Object> transferredKeys = new HashSet<Object>();
 
     public XSiteOutBoundStateTransferTask(Address destination,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
                                           CacheLoaderManager cacheLoaderManager, RpcManager rpcManager, Configuration configuration,
-                                          String cacheName, Address source, long timeout) {
+                                          String cacheName, Address source, long timeout, int xsiteTransferChunkSize) {
 
         if (destination == null) {
             throw new IllegalArgumentException("Destination address cannot be null");
@@ -102,6 +109,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         this.configuration = configuration;
         this.timeout = timeout;
         this.cacheName = cacheName;
+        this.xsiteTransferChunkSize = xsiteTransferChunkSize;
     }
 
     public void execute(ExecutorService executorService) {
@@ -130,7 +138,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
             // send data container entries
             List<InternalCacheEntry> listOfEntriesToSend = new ArrayList<InternalCacheEntry>();
             for (InternalCacheEntry ice : dataContainer) {
-                listOfEntriesToSend.add(ice);
+                sendEntry(ice);
             }
 
             // send cache store entries if needed
@@ -144,7 +152,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
                         try {
                             InternalCacheEntry ice = cacheStore.load(key);
                             if (ice != null) { // check entry still exists
-                                listOfEntriesToSend.add(ice);
+                                sendEntry(ice);
                             }
                         } catch (CacheLoaderException e) {
                             log.failedLoadingValueFromCacheStore(key, e);
@@ -160,8 +168,8 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
                 }
             }
 
-            // send all the entries in one shot
-            sendEntries(listOfEntriesToSend);
+            // send all the remaining entries in one shot
+            sendEntries(true);
         } catch (Throwable t) {
             // ignore eventual exceptions caused by cancellation (have InterruptedException as the root cause)
             if (!runnableFuture.isCancelled()) {
@@ -192,24 +200,40 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         return cacheName;
     }
 
-
-    private void sendEntries(List<InternalCacheEntry> listOfEntriesToSend) {
-
-
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source, listOfEntriesToSend, cacheName, null);
-
-        rpcManager.invokeRemotelyInFuture(Collections.singleton(destination), xSiteTransferCommand, false, sendFuture, timeout);
-
+    private void sendEntry(InternalCacheEntry ice) {
+        // send if we have a full chunk
+        if (accumulatedEntries >= xsiteTransferChunkSize) {
+            sendEntries(false);
+            currentLoadOfEntries.clear();
+            accumulatedEntries = 0;
+        }
+        currentLoadOfEntries.add(ice);
+        accumulatedEntries++;
     }
 
 
-   private void calculateTransferredKeys (List<InternalCacheEntry> transferredEntries){
-      if(transferredEntries != null){
-          for(InternalCacheEntry ie: transferredEntries){
-             transferredKeys.add(ie.getKey()) ;
-          }
-      }
-   }
+    private void sendEntries(boolean isLastLoad) {
+        if (!currentLoadOfEntries.isEmpty()) {
+
+            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source, currentLoadOfEntries, cacheName, null);
+
+            rpcManager.invokeRemotelyInFuture(Collections.singleton(destination), xSiteTransferCommand, false, sendFuture, timeout);
+
+        }
+        if (isLastLoad) {
+            currentLoadOfEntries.clear();
+            accumulatedEntries = 0;
+        }
+    }
+
+
+    private void calculateTransferredKeys(List<InternalCacheEntry> transferredEntries) {
+        if (transferredEntries != null) {
+            for (InternalCacheEntry ie : transferredEntries) {
+                transferredKeys.add(ie.getKey());
+            }
+        }
+    }
 
     /**
      * Cancel the whole task.
