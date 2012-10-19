@@ -111,8 +111,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
 
         Address address = transport.getAddress();
         XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(siteName, cacheName, address);
-        //TODO that needs to come from somewhere
-        int timeout = 10;
+        
         //TODO return object to be determined
         //TODO Exception handling to be determined
         try {

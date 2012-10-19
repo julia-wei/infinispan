@@ -15,6 +15,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.BackupReceiver;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,6 +41,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
     private long timeout;
     private boolean useVersionedPut;
     private boolean fetchEnabled;
+    private BackupReceiver backupReceiver;
 
 
     @Inject
@@ -49,7 +51,8 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
                      InvocationContextContainer icc,
                      Configuration configuration,
                      RpcManager rpcManager,
-                     CommandsFactory commandsFactory
+                     CommandsFactory commandsFactory,
+                     BackupReceiver backupReceiver
     ) {
         this.cacheName = cache.getName();
 
@@ -58,6 +61,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
         this.configuration = configuration;
         this.rpcManager = rpcManager;
         this.commandsFactory = commandsFactory;
+        this.backupReceiver = backupReceiver;
 
 
         // we need to use a special form of PutKeyValueCommand that can apply versions too
@@ -74,6 +78,18 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
     @Override
     public Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries) {
         return doApplyState(sender, cacheEntries);
+    }
+
+    @Override
+    public Object applyTransactions(com.sun.tools.javac.util.List<XSiteTransactionInfo> transactionInfo, String cacheName) {
+        for(XSiteTransactionInfo xSiteTransactionInfo: transactionInfo) {
+            handleSingleTransaction(xSiteTransactionInfo);
+        }
+
+        return null;
+    }
+
+    private void handleSingleTransaction(XSiteTransactionInfo xSiteTransactionInfo) {
     }
 
     private Object doApplyState(Address sender, Collection<InternalCacheEntry> cacheEntries) {

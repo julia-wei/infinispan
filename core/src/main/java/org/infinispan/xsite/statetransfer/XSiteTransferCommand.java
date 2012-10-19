@@ -29,7 +29,6 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.transport.Address;
-import org.infinispan.statetransfer.TransactionInfo;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -39,7 +38,7 @@ import java.util.List;
 public class XSiteTransferCommand implements ReplicableCommand {
 
     private static final Log log = LogFactory.getLog(XSiteTransferCommand.class);
-    private List<TransactionInfo> transactionInfo;
+    private List<XSiteTransactionInfo> transactionInfo;
     private Address origin;
     private List<InternalCacheEntry> internalCacheEntries;
     private String cacheName;
@@ -55,7 +54,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
     }
 
 
-    public XSiteTransferCommand(Type type, Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<TransactionInfo> transactionInfo) {
+    public XSiteTransferCommand(Type type, Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<XSiteTransactionInfo> transactionInfo) {
         this.origin = origin;
         this.internalCacheEntries = internalCacheEntries;
         this.cacheName = cacheName;
@@ -78,6 +77,9 @@ public class XSiteTransferCommand implements ReplicableCommand {
                 case STATE_TRANSFERRED:
                     return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
 
+                case TRANSACTION_TRANSFERRED:
+                    return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
+
 
                 default:
                     throw new CacheException("Unknown state request command type: " + type);
@@ -92,7 +94,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
         return 0;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
-    public List<TransactionInfo> getTransactionInfo() {
+    public List<XSiteTransactionInfo> getTransactionInfo() {
         return transactionInfo;
     }
 
@@ -117,7 +119,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
         return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, internalCacheEntries, transactionInfo};
     }
 
-    public void setTransactionInfo(List<TransactionInfo> transactionInfo) {
+    public void setTransactionInfo(List<XSiteTransactionInfo> transactionInfo) {
         this.transactionInfo = transactionInfo;
     }
 
@@ -144,7 +146,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
         setOrigin((Address) parameters[i++]);
         setCacheName((String) parameters[i++]);
         setInternalCacheEntries((List<InternalCacheEntry>) parameters[i++]);
-        setTransactionInfo((List<TransactionInfo>) parameters[i++]);
+        setTransactionInfo((List<XSiteTransactionInfo>) parameters[i++]);
     }
 
     @Override

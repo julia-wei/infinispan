@@ -23,6 +23,7 @@
 package org.infinispan.xsite.statetransfer;
 
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.distribution.ch.ConsistentHash;
@@ -39,6 +40,7 @@ import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.CacheTransaction;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.XSiteBackup;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -64,10 +66,11 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     private ExecutorService executorService;
     private long timeout;
     private int chunkSize;
+
     /**
      * A map that keeps track of current XSite state transfers by Site address.
      */
-    private final Map<Address, XSiteOutBoundStateTransferTask> transfersBySite = new HashMap<Address, XSiteOutBoundStateTransferTask>();
+    private final Map<String, XSiteOutBoundStateTransferTask> transfersBySite = new HashMap<String, XSiteOutBoundStateTransferTask>();
 
 
     @Inject
@@ -87,6 +90,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         this.dataContainer = dataContainer;
         this.cacheLoaderManager = cacheLoaderManager;
         this.executorService = executorService;
+        //TODO get it from the site configuration
         int chunkSize = configuration.clustering().stateTransfer().chunkSize();
         this.chunkSize = chunkSize > 0 ? chunkSize : Integer.MAX_VALUE;
     }
@@ -98,8 +102,13 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
     @Override
-    public Object startXSiteStateTransfer(String siteName, String cacheName, Address origin) {
+    public Object startXSiteStateTransfer(String siteName, String cacheName, Address origin) throws Exception {
         List<TransactionInfo> transactions = getTransactionsForCache(siteName, cacheName, origin);
+        List<XSiteTransactionInfo> transactionInfoList = translateToXSiteTransaction(transactions);
+        if (!transactionInfoList.isEmpty()) {
+            pushTransacationsToSite(transactionInfoList, siteName, cacheName, origin);
+        }
+
         //TODO need to push transactions to the Site
         startCacheStateTransfer(siteName, cacheName, origin);
         //TODO need to determine what Object to return here
@@ -107,14 +116,25 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     }
 
+    private List<XSiteTransactionInfo> translateToXSiteTransaction(List<TransactionInfo> transactionInfo) {
+        List<XSiteTransactionInfo> xSiteTransactionInfoList = new ArrayList<XSiteTransactionInfo>();
+        if (transactionInfo != null && !transactionInfo.isEmpty()) {
+            for (TransactionInfo trInfo : transactionInfo) {
+                XSiteTransactionInfo xSiteTransactionInfo = new XSiteTransactionInfo(trInfo.getGlobalTransaction(), trInfo.getModifications());
+                xSiteTransactionInfoList.add(xSiteTransactionInfo);
+            }
+        }
+        return xSiteTransactionInfoList;
+    }
+
+
     private void startCacheStateTransfer(String siteName, String cacheName, Address origin) {
         log.tracef("Starting outbound transfer of cache  %s to site", cacheName,
                 siteName);
-        //TODO how to get the address of the SiteMaster given the siteName
-        Address siteMasterAddress = null;
-        //TODO need to get the timeout for the xsite state transfer
+
+        //TODO need to get the timeout for the xsite state transfer or use the replication timeout
         timeout = configuration.clustering().stateTransfer().timeout();
-        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(siteMasterAddress, this, dataContainer, cacheLoaderManager, rpcManager, configuration, cacheName, origin, timeout, chunkSize);
+        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(siteName, this, dataContainer, cacheLoaderManager, configuration, cacheName, origin, transport, timeout, chunkSize);
         addXSiteStateTransfer(xSiteOutBoundStateTransferTask);
         xSiteOutBoundStateTransferTask.execute(executorService);
     }
@@ -150,7 +170,22 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
 
-    private void pushTransacationsToXsite(List<TransactionInfo> transactionInfo) {
+    private void pushTransacationsToSite(List<XSiteTransactionInfo> transactionInfo, String siteName, String cacheName, Address origin) throws Exception {
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, null, cacheName, transactionInfo);
+        List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
+        BackupConfiguration bc = getBackupConfigurationForSite(siteName);
+        if (bc == null) {
+
+            if (trace) {
+                log.tracef("No backup configuration is found for the site %s", siteName);
+            }
+        }
+        boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
+        XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
+        backupInfo.add(bi);
+
+        transport.backupRemotely(backupInfo, xSiteTransferCommand);
+
 
     }
 
@@ -185,20 +220,30 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private void addXSiteStateTransfer(XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask) {
         if (trace) {
-            log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getDestination(), xSiteOutBoundStateTransferTask.getSource());
+            log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getSiteName(), xSiteOutBoundStateTransferTask.getSource());
         }
         synchronized (transfersBySite) {
 
-            transfersBySite.put(xSiteOutBoundStateTransferTask.getDestination(), xSiteOutBoundStateTransferTask);
+            transfersBySite.put(xSiteOutBoundStateTransferTask.getSiteName(), xSiteOutBoundStateTransferTask);
         }
 
 
     }
 
+    public BackupConfiguration getBackupConfigurationForSite(String siteName) {
+
+        for (BackupConfiguration bc : configuration.sites().inUseBackups()) {
+            if (bc.site().equals(siteName)) {
+                return bc;
+            }
+        }
+        return null;
+    }
+
 
     private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
         if (transferTask != null && !transfersBySite.isEmpty()) {
-            transfersBySite.remove(transferTask.getDestination());
+            transfersBySite.remove(transferTask.getSiteName());
         }
     }
 
@@ -206,7 +251,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         if (trace) {
             //TODO message regarding the cancellation or completion of state transfer task
             log.tracef("Removing outBoundXSiteTransferTask from the node %s to %s",
-                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getDestination());
+                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getSiteName());
         }
 
         removeTransfer(transferTask);

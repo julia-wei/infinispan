@@ -23,6 +23,7 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import com.sun.tools.javac.util.List;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
@@ -36,4 +37,5 @@ import java.util.Collection;
 @Scope(Scopes.NAMED_CACHE)
 public interface XSiteStateTransferReceiver {
     public Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries);
+    public Object applyTransactions(List<XSiteTransactionInfo> transactionInfo, String cacheName);
 }

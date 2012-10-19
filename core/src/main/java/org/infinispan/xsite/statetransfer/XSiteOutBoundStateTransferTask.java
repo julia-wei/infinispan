@@ -23,6 +23,7 @@
 
 package org.infinispan.xsite.statetransfer;
 
+import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.entries.InternalCacheEntry;
@@ -31,13 +32,18 @@ import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.Transport;
 import org.infinispan.util.ReadOnlyDataContainerBackedKeySet;
 import org.infinispan.util.concurrent.AggregatingNotifyingFutureBuilder;
 import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.XSiteBackup;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.FutureTask;
 
@@ -53,15 +59,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     private XSiteStateProviderImpl xSiteStateProvider;
 
-    private final Address destination;
 
     private final Configuration configuration;
 
     private final DataContainer dataContainer;
 
     private final CacheLoaderManager cacheLoaderManager;
-
-    private final RpcManager rpcManager;
 
 
     private final long timeout;
@@ -76,6 +79,10 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private int accumulatedEntries;
 
     private List<InternalCacheEntry> currentLoadOfEntries = new ArrayList<InternalCacheEntry>();
+    private Transport transport;
+
+    private String siteName;
+    private BackupConfiguration bc;
 
 
     /**
@@ -89,27 +96,27 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private FutureTask runnableFuture;
     private Set<Object> transferredKeys = new HashSet<Object>();
 
-    public XSiteOutBoundStateTransferTask(Address destination,
+    public XSiteOutBoundStateTransferTask(String siteName,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
-                                          CacheLoaderManager cacheLoaderManager, RpcManager rpcManager, Configuration configuration,
-                                          String cacheName, Address source, long timeout, int xsiteTransferChunkSize) {
+                                          CacheLoaderManager cacheLoaderManager,Configuration configuration,
+                                          String cacheName, Address source, Transport transport, long timeout, int xsiteTransferChunkSize) {
 
-        if (destination == null) {
-            throw new IllegalArgumentException("Destination address cannot be null");
+        if (siteName == null) {
+            throw new IllegalArgumentException("The destination Site cannot be null");
         }
 
         this.xSiteStateProvider = xSiteStateProvider;
-        this.destination = destination;
         this.source = source;
-
-
         this.dataContainer = dataContainer;
         this.cacheLoaderManager = cacheLoaderManager;
-        this.rpcManager = rpcManager;
+
         this.configuration = configuration;
         this.timeout = timeout;
         this.cacheName = cacheName;
         this.xsiteTransferChunkSize = xsiteTransferChunkSize;
+        this.transport = transport;
+        this.siteName = siteName;
+        this.bc = getBackupConfigurationForSite(this.siteName);
     }
 
     public void execute(ExecutorService executorService) {
@@ -126,8 +133,15 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         executorService.submit(runnableFuture);
     }
 
-    public Address getDestination() {
-        return destination;
+
+    private BackupConfiguration getBackupConfigurationForSite(String siteName) {
+
+        for (BackupConfiguration bc : configuration.sites().inUseBackups()) {
+            if (bc.site().equals(siteName)) {
+                return bc;
+            }
+        }
+        return null;
     }
 
 
@@ -177,8 +191,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
             }
         }
         if (trace) {
-            log.tracef("Outbound transfer of keys to remote %s is complete", destination);
+            log.tracef("Outbound transfer of keys to remote %s is complete", siteName);
         }
+    }
+
+    public String getSiteName() {
+        return siteName;
     }
 
     /**
@@ -200,7 +218,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         return cacheName;
     }
 
-    private void sendEntry(InternalCacheEntry ice) {
+    private void sendEntry(InternalCacheEntry ice) throws Exception {
         // send if we have a full chunk
         if (accumulatedEntries >= xsiteTransferChunkSize) {
             sendEntries(false);
@@ -212,12 +230,21 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     }
 
 
-    private void sendEntries(boolean isLastLoad) {
+    private void sendEntries(boolean isLastLoad) throws Exception {
         if (!currentLoadOfEntries.isEmpty()) {
 
             XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source, currentLoadOfEntries, cacheName, null);
+            List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
+            if (bc == null) {
+               
+                bc = xSiteStateProvider.getBackupConfigurationForSite(siteName);
+            }
+            boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
+            XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
+            backupInfo.add(bi);
 
-            rpcManager.invokeRemotelyInFuture(Collections.singleton(destination), xSiteTransferCommand, false, sendFuture, timeout);
+            transport.backupRemotely(backupInfo, xSiteTransferCommand);
+
 
         }
         if (isLastLoad) {
