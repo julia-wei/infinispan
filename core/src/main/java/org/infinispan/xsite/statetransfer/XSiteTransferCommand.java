@@ -31,6 +31,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.BackupReceiverRepository;
 
 import java.util.List;
 
@@ -43,7 +44,10 @@ public class XSiteTransferCommand implements ReplicableCommand {
     private List<InternalCacheEntry> internalCacheEntries;
     private String cacheName;
     private Type type;
-    private XSiteStateTransferReceiver xSiteStateTransferReceiver;
+    private String originSiteName;
+
+
+    private transient BackupReceiverRepository backupReceiverRepository;
 
     public enum Type {
 
@@ -54,17 +58,18 @@ public class XSiteTransferCommand implements ReplicableCommand {
     }
 
 
-    public XSiteTransferCommand(Type type, Address origin, List<InternalCacheEntry> internalCacheEntries, String cacheName, List<XSiteTransactionInfo> transactionInfo) {
+    public XSiteTransferCommand(Type type, Address origin, String cacheName, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo) {
         this.origin = origin;
         this.internalCacheEntries = internalCacheEntries;
         this.cacheName = cacheName;
         this.transactionInfo = transactionInfo;
         this.type = type;
+        this.originSiteName = originSiteName;
     }
 
     @Inject
-    public void init(XSiteStateTransferReceiver xSiteStateTransferReceiver) {
-        this.xSiteStateTransferReceiver = xSiteStateTransferReceiver;
+    public void init(BackupReceiverRepository backupReceiverRepository) {
+        this.backupReceiverRepository = backupReceiverRepository;
     }
 
 
@@ -72,13 +77,15 @@ public class XSiteTransferCommand implements ReplicableCommand {
     public Object perform(InvocationContext ctx) throws Throwable {
         final boolean trace = log.isTraceEnabled();
         LogFactory.pushNDC(cacheName, trace);
+        XSiteStateTransferReceiver xSiteStateTransferReceiver = backupReceiverRepository.getXSiteStateTransferReceiver(originSiteName, cacheName);
         try {
             switch (type) {
                 case STATE_TRANSFERRED:
+
                     return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
 
                 case TRANSACTION_TRANSFERRED:
-                    return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
+                    return xSiteStateTransferReceiver.applyTransactions(transactionInfo, cacheName);
 
 
                 default:

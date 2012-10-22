@@ -57,10 +57,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class BackupReceiver {
 
-   private final Cache cache;
+
+
+    private final Cache cache;
 
    //todo add some housekeeping logic for this, e.g. timeouts..
-   private final ConcurrentMap<GlobalTransaction, GlobalTransaction> remote2localTx = new ConcurrentHashMap<GlobalTransaction, GlobalTransaction>();
+   private final ConcurrentMap<GlobalTransaction, GlobalTransactionInfo> remote2localTx = new ConcurrentHashMap<GlobalTransaction, GlobalTransactionInfo>();
    private final BackupCacheUpdater siteUpdater;
 
    public BackupReceiver(Cache cache) {
@@ -72,6 +74,18 @@ public class BackupReceiver {
       return cache;
    }
 
+   public void addGlobalTransaction(GlobalTransaction globalTransaction, GlobalTransactionInfo globalTransactionInfo) {
+       remote2localTx.put(globalTransaction, globalTransactionInfo);
+   }
+
+   public GlobalTransactionInfo getGlobalTransactionInfo(GlobalTransaction globalTransaction){
+       return remote2localTx.get(globalTransaction);
+   }
+
+  public void removeGlobalTransaction(GlobalTransaction globalTransaction){
+      remote2localTx.remove(globalTransaction);
+  }
+
    public Object handleRemoteCommand(VisitableCommand command) throws Throwable {
       return command.acceptVisitor(null, siteUpdater);
    }
@@ -80,11 +94,11 @@ public class BackupReceiver {
 
       private static Log log = LogFactory.getLog(BackupCacheUpdater.class);
 
-      private final ConcurrentMap<GlobalTransaction, GlobalTransaction> remote2localTx;
+      private final ConcurrentMap<GlobalTransaction, GlobalTransactionInfo> remote2localTx;
 
       private final AdvancedCache backupCache;
 
-      BackupCacheUpdater(Cache backup, ConcurrentMap<GlobalTransaction, GlobalTransaction> remote2localTx) {
+      BackupCacheUpdater(Cache backup, ConcurrentMap<GlobalTransaction, GlobalTransactionInfo> remote2localTx) {
          //ignore return values on the backup
          this.backupCache = backup.getAdvancedCache().withFlags(Flag.IGNORE_RETURN_VALUES, Flag.SKIP_XSITE_BACKUP);
          this.remote2localTx = remote2localTx;
@@ -182,10 +196,18 @@ public class BackupReceiver {
 
       private void completeTransaction(GlobalTransaction globalTransaction, boolean commit) throws Throwable {
          TransactionTable txTable = txTable();
-         GlobalTransaction localTxId = remote2localTx.remove(globalTransaction);
-         if (localTxId == null) {
-            throw new CacheException("Couldn't find a local transaction corresponding to remote transaction " + globalTransaction);
+         GlobalTransactionInfo globalTransactionInfo = remote2localTx.remove(globalTransaction);
+
+        // GlobalTransaction localTxId = remote2localTx.remove(globalTransaction);
+         if (globalTransactionInfo == null) {
+            //TODO instead of throwing an exception, maybe we need to add the transaction to the table with the status commit_received
+           // throw new CacheException("Couldn't find a local transaction corresponding to remote transaction " + globalTransaction);
+           globalTransactionInfo = new GlobalTransactionInfo(globalTransaction, GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED);
+           remote2localTx.put(globalTransaction, globalTransactionInfo);
+           return;
          }
+
+         GlobalTransaction localTxId = globalTransactionInfo.getGlobalTransaction();
          LocalTransaction localTx = txTable.getLocalTransaction(localTxId);
          if (localTx == null) {
             throw new IllegalStateException("Local tx not found but present in the tx table!");
@@ -200,34 +222,54 @@ public class BackupReceiver {
       }
 
       private void replayModificationsInTransaction(PrepareCommand command, boolean onePhaseCommit) throws Throwable {
-         TransactionManager tm = txManager();
-         boolean replaySuccessful = false;         
-         try {
-             
-            tm.begin();            
-            replayModifications(command);
-            replaySuccessful = true;                                                                            
-         }
-         finally {
-            LocalTransaction localTx = txTable().getLocalTransaction( tm.getTransaction() );
-            localTx.setFromRemoteSite(true);
-            
-            if (onePhaseCommit) {
-               if( replaySuccessful ) {
-                  log.tracef("Committing remotely originated tx %s as it is 1PC", command.getGlobalTransaction());
-                  tm.commit();               
-               } else {
-                  log.tracef("Rolling back remotely originated tx %s", command.getGlobalTransaction());          
-                  tm.rollback();                                                                
-               }                
-            } else { // Wait for a remote commit/rollback.
-               remote2localTx.put(command.getGlobalTransaction(), localTx.getGlobalTransaction());
-               tm.suspend();
-            }
-         }                                         
+          TransactionManager tm = txManager();
+          boolean replaySuccessful = false;
+          boolean commitAlreadyReceived = false;
+          GlobalTransactionInfo globalTransactionInfoFromPreviousCommit = checkForCommitReceivedBeforePrepare(command.getGlobalTransaction());
+          if (globalTransactionInfoFromPreviousCommit != null) {
+              commitAlreadyReceived = true;
+          }
+          try {
+
+              tm.begin();
+              replayModifications(command);
+              replaySuccessful = true;
+          }
+          finally {
+              LocalTransaction localTx = txTable().getLocalTransaction(tm.getTransaction());
+              localTx.setFromRemoteSite(true);
+
+              if (onePhaseCommit) {
+                  if (replaySuccessful) {
+                      log.tracef("Committing remotely originated tx %s as it is 1PC", command.getGlobalTransaction());
+                      tm.commit();
+                  } else {
+                      log.tracef("Rolling back remotely originated tx %s", command.getGlobalTransaction());
+                      tm.rollback();
+                  }
+              } else {
+                  if (commitAlreadyReceived) {  //have already got the commit for it
+                      tm.commit();
+                  } else {   // Wait for a remote commit/rollback.
+                      GlobalTransactionInfo globalTransactionInfo = new GlobalTransactionInfo(localTx.getGlobalTransaction(), GlobalTransactionInfo.TransactionStatus.PREPARED_RECEIVED);
+                      remote2localTx.put(command.getGlobalTransaction(), globalTransactionInfo);
+                      tm.suspend();
+                  }
+              }
+          }
       }
 
-      private TransactionManager txManager() {
+       private GlobalTransactionInfo checkForCommitReceivedBeforePrepare(GlobalTransaction globalTransaction) {
+           GlobalTransactionInfo globalTransactionInfo = remote2localTx.get(globalTransaction);
+           if (globalTransactionInfo != null && globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
+               remote2localTx.remove(globalTransaction);
+               return globalTransactionInfo;
+           }
+           return null;
+       }
+
+
+       private TransactionManager txManager() {
          return backupCache.getAdvancedCache().getTransactionManager();
       }
 

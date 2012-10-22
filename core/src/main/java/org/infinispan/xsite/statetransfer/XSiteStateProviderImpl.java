@@ -171,7 +171,9 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
 
     private void pushTransacationsToSite(List<XSiteTransactionInfo> transactionInfo, String siteName, String cacheName, Address origin) throws Exception {
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, null, cacheName, transactionInfo);
+        //TODO determine how to get the origin siteName
+        String originSiteName = null;
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, cacheName,originSiteName, null, transactionInfo);
         List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
         BackupConfiguration bc = getBackupConfigurationForSite(siteName);
         if (bc == null) {

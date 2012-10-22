@@ -111,7 +111,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
 
         Address address = transport.getAddress();
         XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(siteName, cacheName, address);
-        
+
         //TODO return object to be determined
         //TODO Exception handling to be determined
         try {

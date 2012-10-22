@@ -19,63 +19,62 @@ public class XSiteTransactionInfo {
 
     private final GlobalTransaction globalTransaction;
 
-   private final WriteCommand[] modifications;
+    private final WriteCommand[] modifications;
 
 
-   public XSiteTransactionInfo(GlobalTransaction globalTransaction,  WriteCommand[] modifications) {
-      this.globalTransaction = globalTransaction;
-      this.modifications = modifications;
+    public XSiteTransactionInfo(GlobalTransaction globalTransaction, WriteCommand[] modifications) {
+        this.globalTransaction = globalTransaction;
+        this.modifications = modifications;
 
-   }
+    }
 
-   public GlobalTransaction getGlobalTransaction() {
-      return globalTransaction;
-   }
+    public GlobalTransaction getGlobalTransaction() {
+        return globalTransaction;
+    }
 
-   public WriteCommand[] getModifications() {
-      return modifications;
-   }
+    public WriteCommand[] getModifications() {
+        return modifications;
+    }
 
 
+    @Override
+    public String toString() {
+        return "TransactionInfo{" +
+                "globalTransaction=" + globalTransaction +
 
-   @Override
-   public String toString() {
-      return "TransactionInfo{" +
-            "globalTransaction=" + globalTransaction +
+                ", modifications=" + Arrays.asList(modifications) +
 
-            ", modifications=" + Arrays.asList(modifications) +
+                '}';
+    }
 
-            '}';
-   }
+    public static class Externalizer extends AbstractExternalizer<XSiteTransactionInfo> {
 
-   public static class Externalizer extends AbstractExternalizer<XSiteTransactionInfo> {
+        @Override
+        public Integer getId() {
+            return Ids.TRANSACTION_INFO;
+        }
 
-      @Override
-      public Integer getId() {
-         return Ids.TRANSACTION_INFO;
-      }
+        @Override
+        public Set<Class<? extends XSiteTransactionInfo>> getTypeClasses() {
+            return Collections.<Class<? extends XSiteTransactionInfo>>singleton(XSiteTransactionInfo.class);
+        }
 
-      @Override
-      public Set<Class<? extends XSiteTransactionInfo>> getTypeClasses() {
-         return Collections.<Class<? extends XSiteTransactionInfo>>singleton(XSiteTransactionInfo.class);
-      }
+        @Override
+        public void writeObject(ObjectOutput output, XSiteTransactionInfo object) throws IOException {
+            output.writeObject(object.globalTransaction);
 
-      @Override
-      public void writeObject(ObjectOutput output, XSiteTransactionInfo object) throws IOException {
-         output.writeObject(object.globalTransaction);
+            output.writeObject(object.modifications);
 
-         output.writeObject(object.modifications);
+        }
 
-      }
+        @Override
+        @SuppressWarnings("unchecked")
+        public XSiteTransactionInfo readObject(ObjectInput input) throws IOException, ClassNotFoundException {
+            GlobalTransaction globalTransaction = (GlobalTransaction) input.readObject();
 
-      @Override
-      @SuppressWarnings("unchecked")
-      public XSiteTransactionInfo readObject(ObjectInput input) throws IOException, ClassNotFoundException {
-         GlobalTransaction globalTransaction = (GlobalTransaction) input.readObject();
+            WriteCommand[] modifications = (WriteCommand[]) input.readObject();
 
-         WriteCommand[] modifications = (WriteCommand[]) input.readObject();
-
-         return new XSiteTransactionInfo(globalTransaction, modifications);
-      }
-   }
+            return new XSiteTransactionInfo(globalTransaction, modifications);
+        }
+    }
 }

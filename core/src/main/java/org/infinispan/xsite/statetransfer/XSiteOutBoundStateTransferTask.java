@@ -30,7 +30,6 @@ import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
-import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.util.ReadOnlyDataContainerBackedKeySet;
@@ -98,7 +97,7 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     public XSiteOutBoundStateTransferTask(String siteName,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
-                                          CacheLoaderManager cacheLoaderManager,Configuration configuration,
+                                          CacheLoaderManager cacheLoaderManager, Configuration configuration,
                                           String cacheName, Address source, Transport transport, long timeout, int xsiteTransferChunkSize) {
 
         if (siteName == null) {
@@ -233,10 +232,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private void sendEntries(boolean isLastLoad) throws Exception {
         if (!currentLoadOfEntries.isEmpty()) {
 
-            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source, currentLoadOfEntries, cacheName, null);
+            //TODO to determine how to pass origin site name
+            String originSiteName = null;
+            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source,cacheName, siteName, currentLoadOfEntries,  null);
             List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
             if (bc == null) {
-               
+
                 bc = xSiteStateProvider.getBackupConfigurationForSite(siteName);
             }
             boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
