@@ -23,14 +23,15 @@
 
 package org.infinispan.xsite.statetransfer;
 
-import org.infinispan.Cache;
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.configuration.global.GlobalConfiguration;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.manager.DefaultCacheManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
@@ -41,7 +42,10 @@ import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -59,78 +63,91 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     private Transport transport;
     private ExecutorService asyncTransportExecutor;
     private GlobalComponentRegistry gcr;
-    private String cacheName;
     private LocalTopologyManager localTopologyManager;
-    private Configuration config;
+    //TODO not sure if the configuration can be injected here
+    private Configuration configuration;
     private BackupConfiguration bc;
     private boolean xsiteTransferRunning;
+    private DefaultCacheManager defaultCacheManager;
+    private GlobalConfiguration globalConfiguration;
+    private String sourceSiteName;
 
 
     @Inject
     public void inject(Transport transport,
                        @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor,
-                       GlobalComponentRegistry gcr,
-                       Cache cache) {
+                       GlobalComponentRegistry gcr, Configuration config, DefaultCacheManager defaultCacheManager, GlobalConfiguration globalConfiguration) {
         this.transport = transport;
         this.asyncTransportExecutor = asyncTransportExecutor;
         this.gcr = gcr;
-        cacheName = cache.getName();
-        this.localTopologyManager = localTopologyManager;
-        this.config = cache.getCacheConfiguration();
+        this.configuration = config;
+        this.defaultCacheManager = defaultCacheManager;
+        this.globalConfiguration = globalConfiguration;
+        this.sourceSiteName = globalConfiguration.sites().localSite();
+
     }
 
     @Override
-    public void pushState(String siteName) {
-
-
-        pushState(siteName, cacheName);
-
-
+    public Set<XSiteStateTransferResponseInfo> pushState(String destinationSiteName) throws Exception {
+        Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
+        Set<String> cacheNames = defaultCacheManager.getCacheNames();
+        for (String cacheName : cacheNames) {
+            Set<XSiteStateTransferResponseInfo> responses = pushState(destinationSiteName, cacheName);
+            if (responses != null) {
+                xSiteStateTransferResponseInfos.addAll(responses);
+            }
+        }
+        return xSiteStateTransferResponseInfos;
     }
 
-    private BackupConfiguration getBackupConfigurationForSite(String siteName) {
+    @Override
+    public Set<XSiteStateTransferResponseInfo> pushState(String destinationSiteName, String cacheName) throws Exception {
+        bc = getBackupConfigurationForSite(destinationSiteName);
+        if (bc == null) {
+            if (trace) {
+                log.tracef("The current cache %s does not have any backup for the given site %s", cacheName, destinationSiteName);
+                throw new Exception("The site name you specified is not one of the backup sites for the current site");
+            }
+            xsiteTransferRunning = true;
+            Address address = transport.getAddress();
+            XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, address);
 
-        for (BackupConfiguration bc : config.sites().inUseBackups()) {
-            if (bc.site().equals(siteName)) {
-                return bc;
+            //TODO return object to be determined
+            //TODO Exception handling to be determined
+            try {
+                Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, bc.replicationTimeout());
+                if (results != null) {
+                    return buildResponseInfo(results, destinationSiteName, cacheName);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
         return null;
     }
 
-
-    @Override
-    public void pushState(String siteName, String cacheName) {
-        bc = getBackupConfigurationForSite(siteName);
-        if (bc == null) {
-            if (trace)
-                log.tracef("The current cache %s does not have any backup for the given site %s", cacheName, siteName);
-            //TODO do we need to throw an exception here
+    private Set<XSiteStateTransferResponseInfo> buildResponseInfo(Map<Address, Object> results, String siteName, String cacheName) {
+        Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
+        for (Map.Entry<Address, Object> entry : results.entrySet()) {
+            XSiteStateTransferResponseInfo xSiteStateTransferResponseInfo = new XSiteStateTransferResponseInfo(siteName, entry.getKey(), (Set<Object>) entry.getValue(), cacheName);
+            xSiteStateTransferResponseInfos.add(xSiteStateTransferResponseInfo);
         }
-        xsiteTransferRunning = true;
-
-        Address address = transport.getAddress();
-        XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(siteName, cacheName, address);
-
-        //TODO return object to be determined
-        //TODO Exception handling to be determined
-        try {
-            Object object = executeOnClusterSync(xsiteStateRequestCommand, bc.replicationTimeout());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        return xSiteStateTransferResponseInfos;
     }
 
     private XSiteStateRequestCommand buildCommand(String siteName, String cacheName, Address address) {
-        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_TRANSACTION_TRANSFER);
+        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, sourceSiteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_STATE_TRANSFER);
         return xSiteStateRequestCommand;
     }
 
+    private BackupConfiguration getBackupConfigurationForSite(String destinationSiteName) {
 
-    private List<String> getCacheNamesForCurrentNode(GlobalComponentRegistry gcr) {
-        //TODO is there some way to get the caches from the GlobalcomponentRegistr
-        //gcr.get
-        return Collections.unmodifiableList(new ArrayList<String>());
+        for (BackupConfiguration bc : configuration.sites().inUseBackups()) {
+            if (bc.site().equals(destinationSiteName)) {
+                return bc;
+            }
+        }
+        return null;
     }
 
     private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final long timeout)

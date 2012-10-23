@@ -49,7 +49,7 @@ public interface BackupSender {
     */
    void processResponses(BackupResponse backupResponse, VisitableCommand command) throws Throwable;
 
-   BackupResponse backupWrite(WriteCommand command) throws Exception;
+   BackupResponse  backupWrite(WriteCommand command) throws Exception;
 
    BackupResponse backupCommit(CommitCommand command) throws Exception;
 

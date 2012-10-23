@@ -27,6 +27,7 @@ import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.remoting.responses.SuccessfulResponse;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -39,8 +40,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
     private static final Log log = LogFactory.getLog(XSiteStateRequestCommand.class);
 
     public enum Type {
-        START_XSITE_STATE_TRANSFER,
-        START_XSITE_TRANSACTION_TRANSFER
+        START_XSITE_STATE_TRANSFER
+
 
     }
     //TODO Not sure about this one
@@ -48,16 +49,18 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     private Type type;
     private String cacheName;
-    private String siteName;
+    private String destinationSiteName;
     private Address origin;
     private XSiteStateProvider xSiteStateProvider;
+    private String sourceSiteName;
 
 
-    public XSiteStateRequestCommand(String siteName, String cacheName, Address address, Type type) {
-        this.siteName = siteName;
+    public XSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, Type type) {
+        this.destinationSiteName = destinationSiteName;
         this.cacheName = cacheName;
         this.origin = address;
         this.type = type;
+        this.sourceSiteName = sourceSiteName;
     }
 
     @Inject
@@ -72,8 +75,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
         try {
             switch (type) {
                 case START_XSITE_STATE_TRANSFER:
-                    return xSiteStateProvider.startXSiteStateTransfer(siteName, cacheName, origin);
-
+                    Object responseValue = xSiteStateProvider.startXSiteStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
+                    return SuccessfulResponse.create(responseValue);
 
                 default:
                     throw new CacheException("Unknown state request command type: " + type);
@@ -98,7 +101,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     @Override
     public Object[] getParameters() {
-        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, siteName};
+        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, destinationSiteName};
     }
 
 
@@ -109,12 +112,23 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
         type = Type.values()[(Byte) parameters[i++]];
         setOrigin((Address) parameters[i++]);
         cacheName = (String) parameters[i++];
-        siteName = (String) parameters[i++];
+        destinationSiteName = (String) parameters[i++];
 
     }
 
     @Override
     public boolean isReturnValueExpected() {
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return "XSiteStateRequestCommand{" +
+                "type=" + type +
+                ", cacheName='" + cacheName + '\'' +
+                ", destinationSiteName='" + destinationSiteName + '\'' +
+                ", origin=" + origin +
+                ", sourceSiteName='" + sourceSiteName + '\'' +
+                '}';
     }
 }

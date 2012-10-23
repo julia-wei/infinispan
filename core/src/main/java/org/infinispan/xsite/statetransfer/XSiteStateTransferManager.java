@@ -3,15 +3,17 @@ package org.infinispan.xsite.statetransfer;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
 
+import java.util.Set;
+
 /**
  *
  */
 @Scope(Scopes.GLOBAL)
 public interface XSiteStateTransferManager {
 
-    void pushState(String siteName, String cacheName);
+    Set<XSiteStateTransferResponseInfo> pushState(String siteName, String cacheName) throws Exception;
 
-    void pushState(String siteName);
+   Set<XSiteStateTransferResponseInfo>  pushState(String siteName)throws Exception;
 
 
 }

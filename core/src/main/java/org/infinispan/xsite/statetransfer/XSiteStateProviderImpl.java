@@ -32,6 +32,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.BackupResponse;
 import org.infinispan.remoting.transport.Transport;
 import org.infinispan.statetransfer.TransactionInfo;
 import org.infinispan.topology.CacheTopology;
@@ -102,18 +103,13 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
     @Override
-    public Object startXSiteStateTransfer(String siteName, String cacheName, Address origin) throws Exception {
-        List<TransactionInfo> transactions = getTransactionsForCache(siteName, cacheName, origin);
+    public Object startXSiteStateTransfer(String destinationSiteName,String sourceSiteName, String cacheName, Address origin) throws Exception {
+        List<TransactionInfo> transactions = getTransactionsForCache(destinationSiteName, cacheName, origin);
         List<XSiteTransactionInfo> transactionInfoList = translateToXSiteTransaction(transactions);
         if (!transactionInfoList.isEmpty()) {
-            pushTransacationsToSite(transactionInfoList, siteName, cacheName, origin);
+            pushTransacationsToSite(transactionInfoList, destinationSiteName, sourceSiteName, cacheName, origin);
         }
-
-        //TODO need to push transactions to the Site
-        startCacheStateTransfer(siteName, cacheName, origin);
-        //TODO need to determine what Object to return here
-        return null;
-
+        return startCacheStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
     }
 
     private List<XSiteTransactionInfo> translateToXSiteTransaction(List<TransactionInfo> transactionInfo) {
@@ -128,26 +124,32 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
 
-    private void startCacheStateTransfer(String siteName, String cacheName, Address origin) {
+    private Set<Object> startCacheStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) {
         log.tracef("Starting outbound transfer of cache  %s to site", cacheName,
-                siteName);
+                destinationSiteName);
 
         //TODO need to get the timeout for the xsite state transfer or use the replication timeout
         timeout = configuration.clustering().stateTransfer().timeout();
-        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(siteName, this, dataContainer, cacheLoaderManager, configuration, cacheName, origin, transport, timeout, chunkSize);
+        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(destinationSiteName, sourceSiteName, this, dataContainer, cacheLoaderManager, configuration, cacheName, origin, transport, timeout, chunkSize);
         addXSiteStateTransfer(xSiteOutBoundStateTransferTask);
         xSiteOutBoundStateTransferTask.execute(executorService);
+        Set<Object> transferredKeys = null;
+        if(xSiteOutBoundStateTransferTask.isDone()){
+            transferredKeys = xSiteOutBoundStateTransferTask.getTransferredKeys();
+            onTaskCompletion(xSiteOutBoundStateTransferTask);
+        }
+        return transferredKeys;
     }
 
 
-    public List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address) {
+    private List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address) {
 
         if (trace) {
             log.tracef("Received request for cross site transfer of transactions from node %s for site name %s for cache %s", address, siteName, cacheName);
         }
 
         CacheTopology cacheTopology = localTopologyManager.getCacheTopology(cacheName);
-        //TODO which cache to get here
+
 
         readCh = cacheTopology.getCurrentCH();
         if (readCh == null) {
@@ -169,28 +171,30 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     }
 
+    private void pushTransacationsToSite(List<XSiteTransactionInfo> transactionInfo, String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
 
-    private void pushTransacationsToSite(List<XSiteTransactionInfo> transactionInfo, String siteName, String cacheName, Address origin) throws Exception {
-        //TODO determine how to get the origin siteName
-        String originSiteName = null;
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, cacheName,originSiteName, null, transactionInfo);
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, cacheName,sourceSiteName, null, transactionInfo);
         List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
-        BackupConfiguration bc = getBackupConfigurationForSite(siteName);
+        BackupConfiguration bc = getBackupConfigurationForSite(destinationSiteName);
         if (bc == null) {
 
             if (trace) {
-                log.tracef("No backup configuration is found for the site %s", siteName);
+                log.tracef("No backup configuration is found for the site %s", destinationSiteName);
             }
         }
         boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
         XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
         backupInfo.add(bi);
 
-        transport.backupRemotely(backupInfo, xSiteTransferCommand);
+        BackupResponse backupResponse = transport.backupRemotely(backupInfo, xSiteTransferCommand);
+        backupResponse.waitForBackupToFinish();
+        Map<String,Throwable> failedBackups = backupResponse.getFailedBackups();
+        if(failedBackups != null && !failedBackups.isEmpty()){
+            //TODO what needs to be done here; do we need to do the same that is being done in BackupSenderImpl
+        }
 
 
     }
-
 
     private void collectTransactionsToTransfer(List<TransactionInfo> transactionsToTransfer,
                                                Collection<? extends CacheTransaction> transactions,
@@ -222,11 +226,11 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private void addXSiteStateTransfer(XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask) {
         if (trace) {
-            log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getSiteName(), xSiteOutBoundStateTransferTask.getSource());
+            log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getDestinationSiteName(), xSiteOutBoundStateTransferTask.getSource());
         }
         synchronized (transfersBySite) {
 
-            transfersBySite.put(xSiteOutBoundStateTransferTask.getSiteName(), xSiteOutBoundStateTransferTask);
+            transfersBySite.put(xSiteOutBoundStateTransferTask.getDestinationSiteName(), xSiteOutBoundStateTransferTask);
         }
 
 
@@ -245,7 +249,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
         if (transferTask != null && !transfersBySite.isEmpty()) {
-            transfersBySite.remove(transferTask.getSiteName());
+            transfersBySite.remove(transferTask.getDestinationSiteName());
         }
     }
 
@@ -253,7 +257,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         if (trace) {
             //TODO message regarding the cancellation or completion of state transfer task
             log.tracef("Removing outBoundXSiteTransferTask from the node %s to %s",
-                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getSiteName());
+                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getDestinationSiteName());
         }
 
         removeTransfer(transferTask);

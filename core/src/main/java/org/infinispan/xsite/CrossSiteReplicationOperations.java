@@ -22,7 +22,11 @@ package org.infinispan.xsite;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.jmx.annotations.ManagedOperation;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferManager;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferResponseInfo;
 import org.rhq.helpers.pluginAnnotations.agent.Operation;
+
+import java.util.Set;
 
 /**
  * @author Mircea Markus
@@ -32,10 +36,12 @@ import org.rhq.helpers.pluginAnnotations.agent.Operation;
 public class CrossSiteReplicationOperations {
 
    private volatile BackupSender backupSender;
+   private volatile XSiteStateTransferManager xSiteStateTransferManager;
 
    @Inject
-   public void init(BackupSender backupSender) {
+   public void init(BackupSender backupSender, XSiteStateTransferManager xSiteStateTransferManager) {
       this.backupSender = backupSender;
+      this.xSiteStateTransferManager = xSiteStateTransferManager;
    }
 
    @Operation(displayName = "Brings the given site back online on this node.")
@@ -43,4 +49,18 @@ public class CrossSiteReplicationOperations {
    public String bringSiteOnline(String siteName) {
       return backupSender.bringSiteOnline(siteName).toString();
    }
+
+   @Operation(displayName = "Push the transactions and state of this site caches to the target site")
+   @ManagedOperation(description = "Transfer the state of this site to the target site")
+   public Set<XSiteStateTransferResponseInfo> pushState(String siteName) throws Exception {
+      return xSiteStateTransferManager.pushState(siteName);
+   }
+
+   @Operation(displayName = "Push the transactions and state of this site cache to the target site")
+   @ManagedOperation(description = "Transfer the state of this site cache to the target site")
+   public  Set<XSiteStateTransferResponseInfo> pushState(String siteName, String cacheName) throws Exception {
+      return xSiteStateTransferManager.pushState(siteName, cacheName);
+   }
+
+
 }

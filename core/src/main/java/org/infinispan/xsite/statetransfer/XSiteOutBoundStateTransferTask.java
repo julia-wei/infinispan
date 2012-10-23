@@ -80,8 +80,9 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private List<InternalCacheEntry> currentLoadOfEntries = new ArrayList<InternalCacheEntry>();
     private Transport transport;
 
-    private String siteName;
+    private String destinationSiteName;
     private BackupConfiguration bc;
+    private String sourceSiteName;
 
 
     /**
@@ -95,12 +96,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private FutureTask runnableFuture;
     private Set<Object> transferredKeys = new HashSet<Object>();
 
-    public XSiteOutBoundStateTransferTask(String siteName,
+    public XSiteOutBoundStateTransferTask(String destinationSiteName, String sourceSiteName,
                                           XSiteStateProviderImpl xSiteStateProvider, DataContainer dataContainer,
                                           CacheLoaderManager cacheLoaderManager, Configuration configuration,
                                           String cacheName, Address source, Transport transport, long timeout, int xsiteTransferChunkSize) {
 
-        if (siteName == null) {
+        if (destinationSiteName == null) {
             throw new IllegalArgumentException("The destination Site cannot be null");
         }
 
@@ -114,8 +115,9 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         this.cacheName = cacheName;
         this.xsiteTransferChunkSize = xsiteTransferChunkSize;
         this.transport = transport;
-        this.siteName = siteName;
-        this.bc = getBackupConfigurationForSite(this.siteName);
+        this.destinationSiteName = destinationSiteName;
+        this.bc = getBackupConfigurationForDestinationSite(this.destinationSiteName);
+        this.sourceSiteName = sourceSiteName;
     }
 
     public void execute(ExecutorService executorService) {
@@ -123,17 +125,17 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
             throw new IllegalStateException("This task was already submitted");
         }
         runnableFuture = new FutureTask<Void>(this, null) {
-            @Override
-            protected void done() {
-
-                xSiteStateProvider.onTaskCompletion(XSiteOutBoundStateTransferTask.this);
-            }
+//            @Override
+//            protected void done() {
+//
+//                xSiteStateProvider.onTaskCompletion(XSiteOutBoundStateTransferTask.this);
+//            }
         };
         executorService.submit(runnableFuture);
     }
 
 
-    private BackupConfiguration getBackupConfigurationForSite(String siteName) {
+    private BackupConfiguration getBackupConfigurationForDestinationSite(String siteName) {
 
         for (BackupConfiguration bc : configuration.sites().inUseBackups()) {
             if (bc.site().equals(siteName)) {
@@ -143,8 +145,11 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
         return null;
     }
 
+    public Set<Object> getTransferredKeys() {
+        return transferredKeys;
+    }
 
-    //todo [anistor] check thread interrupt status in loops to implement faster cancellation
+//todo [anistor] check thread interrupt status in loops to implement faster cancellation
 
     public void run() {
         try {
@@ -190,12 +195,12 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
             }
         }
         if (trace) {
-            log.tracef("Outbound transfer of keys to remote %s is complete", siteName);
+            log.tracef("Outbound transfer of keys to remote %s is complete", destinationSiteName);
         }
     }
 
-    public String getSiteName() {
-        return siteName;
+    public String getDestinationSiteName() {
+        return destinationSiteName;
     }
 
     /**
@@ -232,19 +237,19 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
     private void sendEntries(boolean isLastLoad) throws Exception {
         if (!currentLoadOfEntries.isEmpty()) {
 
-            //TODO to determine how to pass origin site name
-            String originSiteName = null;
-            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source,cacheName, siteName, currentLoadOfEntries,  null);
+
+            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, source,cacheName, sourceSiteName, currentLoadOfEntries,  null);
             List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
             if (bc == null) {
 
-                bc = xSiteStateProvider.getBackupConfigurationForSite(siteName);
+                bc = xSiteStateProvider.getBackupConfigurationForSite(destinationSiteName);
             }
             boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
             XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
             backupInfo.add(bi);
 
             transport.backupRemotely(backupInfo, xSiteTransferCommand);
+            calculateTransferredKeys(currentLoadOfEntries);
 
 
         }
@@ -275,5 +280,15 @@ public class XSiteOutBoundStateTransferTask implements Runnable {
 
     public boolean isCancelled() {
         return runnableFuture != null && runnableFuture.isCancelled();
+
+    }
+    public boolean isDone(){
+        if(runnableFuture != null && runnableFuture.isDone()){
+            return true;
+        }
+        if(runnableFuture == null){
+            return true;
+        }
+        return false;
     }
 }
