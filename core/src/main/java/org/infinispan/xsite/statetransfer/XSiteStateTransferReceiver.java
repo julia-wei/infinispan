@@ -37,7 +37,9 @@ import java.util.List;
  */
 @Scope(Scopes.NAMED_CACHE)
 public interface XSiteStateTransferReceiver {
-    public Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries);
+    Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries);
+    Object applyTransactions(List<XSiteTransactionInfo> transactionInfo, String cacheName) throws Throwable;
+    void stateTransferCompleted();
 
-    public Object applyTransactions(List<XSiteTransactionInfo> transactionInfo, String cacheName) throws Throwable;
+
 }

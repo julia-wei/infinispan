@@ -45,6 +45,7 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
 import javax.transaction.TransactionManager;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -84,6 +85,15 @@ public class BackupReceiver {
 
   public void removeGlobalTransaction(GlobalTransaction globalTransaction){
       remote2localTx.remove(globalTransaction);
+  }
+
+  public void stateTransferCompleted() {
+      for (Map.Entry<GlobalTransaction, GlobalTransactionInfo> entry : remote2localTx.entrySet()) {
+          GlobalTransactionInfo globalTransactionInfo = entry.getValue();
+          if (globalTransactionInfo != null && globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
+               remote2localTx.remove(entry.getKey());
+          }
+      }
   }
 
    public Object handleRemoteCommand(VisitableCommand command) throws Throwable {
@@ -230,7 +240,6 @@ public class BackupReceiver {
               commitAlreadyReceived = true;
           }
           try {
-
               tm.begin();
               replayModifications(command);
               replaySuccessful = true;

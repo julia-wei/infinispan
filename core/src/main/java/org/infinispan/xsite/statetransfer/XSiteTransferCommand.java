@@ -52,10 +52,9 @@ public class XSiteTransferCommand implements ReplicableCommand {
     public enum Type {
 
         TRANSACTION_TRANSFERRED,
-
         STATE_TRANSFERRED,
-
-    }
+        STATE_TRANFER_COMPLETED
+   }
 
 
     public XSiteTransferCommand(Type type, Address origin, String cacheName, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo) {
@@ -81,11 +80,14 @@ public class XSiteTransferCommand implements ReplicableCommand {
         try {
             switch (type) {
                 case STATE_TRANSFERRED:
-
-                    return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
+                   return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
 
                 case TRANSACTION_TRANSFERRED:
                     return xSiteStateTransferReceiver.applyTransactions(transactionInfo, cacheName);
+
+                case  STATE_TRANFER_COMPLETED:
+                    xSiteStateTransferReceiver.stateTransferCompleted();
+                    backupReceiverRepository.removeXSiteStateTransferReceiver(originSiteName, cacheName);
 
 
                 default:
@@ -123,7 +125,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
 
     @Override
     public Object[] getParameters() {
-        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, internalCacheEntries, transactionInfo};
+        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, internalCacheEntries, transactionInfo, originSiteName};
     }
 
     public void setTransactionInfo(List<XSiteTransactionInfo> transactionInfo) {
@@ -146,18 +148,35 @@ public class XSiteTransferCommand implements ReplicableCommand {
         this.type = type;
     }
 
+    public void setOriginSiteName(String originSiteName) {
+        this.originSiteName = originSiteName;
+    }
+
     @Override
     public void setParameters(int commandId, Object[] parameters) {
         int i = 0;
-        type = Type.values()[(Byte) parameters[i++]];
         setOrigin((Address) parameters[i++]);
-        setCacheName((String) parameters[i++]);
         setInternalCacheEntries((List<InternalCacheEntry>) parameters[i++]);
+        setCacheName((String) parameters[i++]);
         setTransactionInfo((List<XSiteTransactionInfo>) parameters[i++]);
+        type = Type.values()[(Byte) parameters[i++]];
+        setOriginSiteName((String)parameters[i++]);
+    }
+
+    @Override
+    public String toString() {
+        return "XSiteTransferCommand{" +
+                "transactionInfo=" + transactionInfo +
+                ", origin=" + origin +
+                ", internalCacheEntries=" + internalCacheEntries +
+                ", cacheName='" + cacheName + '\'' +
+                ", type=" + type +
+                ", originSiteName='" + originSiteName + '\'' +
+                '}';
     }
 
     @Override
     public boolean isReturnValueExpected() {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+       return true;
     }
 }

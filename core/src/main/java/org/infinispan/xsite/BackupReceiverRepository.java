@@ -40,4 +40,6 @@ public interface BackupReceiverRepository {
    public Object handleRemoteCommand(SingleRpcCommand cmd, SiteAddress src) throws Throwable;
 
    public XSiteStateTransferReceiver getXSiteStateTransferReceiver(String remoteSiteName, String cacheName);
+
+  public void removeXSiteStateTransferReceiver(String remoteSiteName, String cacheName);
 }

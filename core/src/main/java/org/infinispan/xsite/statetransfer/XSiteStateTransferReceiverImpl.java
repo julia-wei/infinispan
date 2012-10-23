@@ -82,7 +82,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
                 configuration.locking().writeSkewCheck() &&
                 configuration.transaction().lockingMode() == LockingMode.OPTIMISTIC &&
                 configuration.clustering().cacheMode().isClustered();
-
+        //TODO get it form the new configuration
         timeout = configuration.clustering().stateTransfer().timeout();
     }
 
@@ -99,6 +99,11 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
         }
 
         return null;
+    }
+
+    @Override
+    public void stateTransferCompleted() {
+        backupReceiver.stateTransferCompleted();
     }
 
     private void handleSingleTransaction(XSiteTransactionInfo xSiteTransactionInfo) throws Throwable {
@@ -211,11 +216,9 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
                 completeTransaction(xSiteTransactionInfo);
                 return;
             }
-
             TransactionManager tm = txManager();
 
             try {
-
                 tm.begin();
                 applyModifications(xSiteTransactionInfo.getModifications());
 
@@ -223,11 +226,8 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
             finally {
                 LocalTransaction localTx = txTable().getLocalTransaction(tm.getTransaction());
                 localTx.setFromRemoteSite(true);
-
-
                 GlobalTransactionInfo globalTransactionInfo = new GlobalTransactionInfo(localTx.getGlobalTransaction(), GlobalTransactionInfo.TransactionStatus.PREPARED_RECEIVED);
                 backupReceiver.addGlobalTransaction(xSiteTransactionInfo.getGlobalTransaction(), globalTransactionInfo);
-
                 tm.suspend();
 
             }
@@ -235,9 +235,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
 
         private void completeTransaction(XSiteTransactionInfo xSiteTransactionInfo) throws Throwable {
             TransactionManager tm = txManager();
-
             try {
-
                 tm.begin();
                 applyModifications(xSiteTransactionInfo.getModifications());
 

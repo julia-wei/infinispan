@@ -120,7 +120,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     @Override
     public boolean isReturnValueExpected() {
-        return false;
+        return true;
     }
 
     @Override

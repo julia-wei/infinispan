@@ -80,6 +80,12 @@ public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
         return xSiteStateTransferReceivers.get(toLookFor);
     }
 
+    @Override
+    public void removeXSiteStateTransferReceiver(String remoteSiteName, String cacheName) {
+         SiteCachePair toLookFor = new SiteCachePair(cacheName, remoteSiteName);
+         xSiteStateTransferReceivers.remove(toLookFor);
+    }
+
     /**
     * Returns the local cache associated defined as backup for the provided remote (site, cache) combo, or throws an
     * exception of no such site is defined.
