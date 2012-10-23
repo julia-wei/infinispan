@@ -62,5 +62,10 @@ public class CrossSiteReplicationOperations {
       return xSiteStateTransferManager.pushState(siteName, cacheName);
    }
 
+   @Operation(displayName = "Cancel the state transfer to the specified site and the cache")
+   @ManagedOperation(description = "Cancel state transfer to the specified site and cache")
+   public  void cancelStateTransfer(String siteName, String cacheName) throws Exception {
+      xSiteStateTransferManager.cancelStateTransfer(siteName, cacheName);
+   }
 
 }

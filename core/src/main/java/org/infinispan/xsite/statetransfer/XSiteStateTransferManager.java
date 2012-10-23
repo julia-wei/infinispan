@@ -15,5 +15,7 @@ public interface XSiteStateTransferManager {
 
    Set<XSiteStateTransferResponseInfo>  pushState(String siteName)throws Exception;
 
+   void cancelStateTransfer(String siteName, String cacheName)throws Exception;
+
 
 }

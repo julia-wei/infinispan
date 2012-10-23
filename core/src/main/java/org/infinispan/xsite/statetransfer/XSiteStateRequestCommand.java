@@ -40,7 +40,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
     private static final Log log = LogFactory.getLog(XSiteStateRequestCommand.class);
 
     public enum Type {
-        START_XSITE_STATE_TRANSFER
+        START_XSITE_STATE_TRANSFER,
+        START_XSITE_STATE_CANCEL
 
 
     }
@@ -77,7 +78,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
                 case START_XSITE_STATE_TRANSFER:
                     Object responseValue = xSiteStateProvider.startXSiteStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
                     return SuccessfulResponse.create(responseValue);
-
+                case START_XSITE_STATE_CANCEL:
+                    
                 default:
                     throw new CacheException("Unknown state request command type: " + type);
             }

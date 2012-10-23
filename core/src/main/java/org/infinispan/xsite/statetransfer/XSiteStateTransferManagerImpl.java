@@ -46,12 +46,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
+
 
 /**
  *
@@ -71,6 +69,8 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     private DefaultCacheManager defaultCacheManager;
     private GlobalConfiguration globalConfiguration;
     private String sourceSiteName;
+    private Map<SiteCachePair, Future<Map<Address, Response>>> xSiteTransferBySiteFutureTasks = new ConcurrentHashMap<SiteCachePair, Future<Map<Address, Response>>>();
+    private Map<SiteCachePair, Future<Object>> xSiteTransferBySiteLocalTasks = new ConcurrentHashMap<SiteCachePair, Future<Object>>();
 
 
     @Inject
@@ -101,6 +101,22 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     }
 
     @Override
+    public void cancelStateTransfer(String destinationSiteName, String cacheName)throws Exception {
+        SiteCachePair siteCachePair = new SiteCachePair(destinationSiteName, cacheName);
+        Future<Map<Address, Response>> remoteFuture = xSiteTransferBySiteFutureTasks.get(siteCachePair);
+        Future<Object> localFuture = xSiteTransferBySiteLocalTasks.get(siteCachePair);
+        if (remoteFuture != null) {
+            remoteFuture.cancel(true);
+        }
+        if (localFuture != null) {
+            localFuture.cancel(true);
+        }
+        Address address = transport.getAddress();
+        XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_STATE_CANCEL);
+         Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, destinationSiteName, cacheName, bc.replicationTimeout(), false);
+    }
+
+    @Override
     public Set<XSiteStateTransferResponseInfo> pushState(String destinationSiteName, String cacheName) throws Exception {
         bc = getBackupConfigurationForSite(destinationSiteName);
         if (bc == null) {
@@ -108,23 +124,33 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
                 log.tracef("The current cache %s does not have any backup for the given site %s", cacheName, destinationSiteName);
                 throw new Exception("The site name you specified is not one of the backup sites for the current site");
             }
-            xsiteTransferRunning = true;
-            Address address = transport.getAddress();
-            XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, address);
+        }
+        xsiteTransferRunning = true;
+        Address address = transport.getAddress();
+        XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_STATE_TRANSFER);
+        Set<XSiteStateTransferResponseInfo> responses = null;
 
+        try {
+            Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, destinationSiteName, cacheName, bc.replicationTimeout(), false);
+            if (results != null) {
+                responses = buildResponseInfo(results, destinationSiteName, cacheName);
+            }
             //TODO return object to be determined
             //TODO Exception handling to be determined
-            try {
-                Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, bc.replicationTimeout());
-                if (results != null) {
-                    return buildResponseInfo(results, destinationSiteName, cacheName);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        return null;
+        removeCompletedTask(destinationSiteName, cacheName);
+        return responses;
+
     }
+
+    private void removeCompletedTask(String destinationSiteName, String cacheName) {
+        SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
+        xSiteTransferBySiteFutureTasks.remove(siteCachePair);
+        xSiteTransferBySiteLocalTasks.remove(siteCachePair);
+    }
+
 
     private Set<XSiteStateTransferResponseInfo> buildResponseInfo(Map<Address, Object> results, String siteName, String cacheName) {
         Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
@@ -135,8 +161,8 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         return xSiteStateTransferResponseInfos;
     }
 
-    private XSiteStateRequestCommand buildCommand(String siteName, String cacheName, Address address) {
-        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, sourceSiteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_STATE_TRANSFER);
+    private XSiteStateRequestCommand buildCommand(String siteName, String cacheName, Address address, XSiteStateRequestCommand.Type type) {
+        XSiteStateRequestCommand xSiteStateRequestCommand = new XSiteStateRequestCommand(siteName, sourceSiteName, cacheName, address, type);
         return xSiteStateRequestCommand;
     }
 
@@ -150,7 +176,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         return null;
     }
 
-    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, final long timeout)
+    private Map<Address, Object> executeOnClusterSync(final ReplicableCommand command, String destinationSiteName, String cacheName, final long timeout, boolean isCancelled)
             throws Exception {
         // first invoke remotely
         Future<Map<Address, Response>> remoteFuture = asyncTransportExecutor.submit(new Callable<Map<Address, Response>>() {
@@ -173,7 +199,11 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
                 }
             }
         });
-
+        if (!isCancelled) {
+            SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
+            xSiteTransferBySiteFutureTasks.put(siteCachePair, remoteFuture);
+            xSiteTransferBySiteLocalTasks.put(siteCachePair, localFuture);
+        }
 
         // wait for the remote commands to finish
         Map<Address, Response> responseMap = remoteFuture.get(timeout, TimeUnit.MILLISECONDS);

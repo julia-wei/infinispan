@@ -14,4 +14,5 @@ import java.util.List;
 public interface XSiteStateProvider {
     
     Object startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception;
+    void cancelXSiteStateTransfer(String destinationSiteName, String cacheName) throws Exception;
 }

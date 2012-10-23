@@ -71,7 +71,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     /**
      * A map that keeps track of current XSite state transfers by Site address.
      */
-    private final Map<String, XSiteOutBoundStateTransferTask> transfersBySite = new HashMap<String, XSiteOutBoundStateTransferTask>();
+    private final Map<SiteCachePair, XSiteOutBoundStateTransferTask> transfersBySite = new HashMap<SiteCachePair, XSiteOutBoundStateTransferTask>();
 
 
     @Inject
@@ -103,13 +103,32 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
     @Override
-    public Object startXSiteStateTransfer(String destinationSiteName,String sourceSiteName, String cacheName, Address origin) throws Exception {
+    public Object startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
         List<TransactionInfo> transactions = getTransactionsForCache(destinationSiteName, cacheName, origin);
         List<XSiteTransactionInfo> transactionInfoList = translateToXSiteTransaction(transactions);
         if (!transactionInfoList.isEmpty()) {
             pushTransacationsToSite(transactionInfoList, destinationSiteName, sourceSiteName, cacheName, origin);
         }
         return startCacheStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
+    }
+
+    @Override
+    public void cancelXSiteStateTransfer(String destinationSiteName, String cacheName) throws Exception {
+       if(isStateTransferInProgress()){
+           SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
+           synchronized(transfersBySite){
+                XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = transfersBySite.get(siteCachePair);
+                if(xSiteOutBoundStateTransferTask != null) {
+                    xSiteOutBoundStateTransferTask.cancel();
+                }
+           }
+       }
+       else {
+           if (trace) {
+               log.tracef("State transfer to the site % for the cache % is not running", destinationSiteName, cacheName);
+           }
+
+       }
     }
 
     private List<XSiteTransactionInfo> translateToXSiteTransaction(List<TransactionInfo> transactionInfo) {
@@ -134,7 +153,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         addXSiteStateTransfer(xSiteOutBoundStateTransferTask);
         xSiteOutBoundStateTransferTask.execute(executorService);
         Set<Object> transferredKeys = null;
-        if(xSiteOutBoundStateTransferTask.isDone()){
+        if (xSiteOutBoundStateTransferTask.isDone()) {
             transferredKeys = xSiteOutBoundStateTransferTask.getTransferredKeys();
             onTaskCompletion(xSiteOutBoundStateTransferTask);
         }
@@ -173,7 +192,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private void pushTransacationsToSite(List<XSiteTransactionInfo> transactionInfo, String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
 
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, cacheName,sourceSiteName, null, transactionInfo);
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.TRANSACTION_TRANSFERRED, origin, cacheName, sourceSiteName, null, transactionInfo);
         List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
         BackupConfiguration bc = getBackupConfigurationForSite(destinationSiteName);
         if (bc == null) {
@@ -188,8 +207,8 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
         BackupResponse backupResponse = transport.backupRemotely(backupInfo, xSiteTransferCommand);
         backupResponse.waitForBackupToFinish();
-        Map<String,Throwable> failedBackups = backupResponse.getFailedBackups();
-        if(failedBackups != null && !failedBackups.isEmpty()){
+        Map<String, Throwable> failedBackups = backupResponse.getFailedBackups();
+        if (failedBackups != null && !failedBackups.isEmpty()) {
             //TODO what needs to be done here; do we need to do the same that is being done in BackupSenderImpl
         }
 
@@ -229,8 +248,9 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
             log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getDestinationSiteName(), xSiteOutBoundStateTransferTask.getSource());
         }
         synchronized (transfersBySite) {
+            SiteCachePair siteCachePair = new SiteCachePair(xSiteOutBoundStateTransferTask.getCacheName(), xSiteOutBoundStateTransferTask.getDestinationSiteName());
 
-            transfersBySite.put(xSiteOutBoundStateTransferTask.getDestinationSiteName(), xSiteOutBoundStateTransferTask);
+            transfersBySite.put(siteCachePair, xSiteOutBoundStateTransferTask);
         }
 
 
@@ -248,8 +268,11 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
 
     private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
-        if (transferTask != null && !transfersBySite.isEmpty()) {
-            transfersBySite.remove(transferTask.getDestinationSiteName());
+        synchronized (transfersBySite) {
+            if (transferTask != null && !transfersBySite.isEmpty()) {
+                SiteCachePair siteCachePair = new SiteCachePair(transferTask.getCacheName(), transferTask.getDestinationSiteName());
+                transfersBySite.remove(siteCachePair);
+            }
         }
     }
 
