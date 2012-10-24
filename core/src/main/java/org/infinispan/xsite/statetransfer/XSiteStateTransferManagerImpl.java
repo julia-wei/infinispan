@@ -31,7 +31,7 @@ import org.infinispan.configuration.global.GlobalConfiguration;
 import org.infinispan.factories.GlobalComponentRegistry;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
-import org.infinispan.manager.DefaultCacheManager;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.remoting.responses.ExceptionResponse;
 import org.infinispan.remoting.responses.Response;
 import org.infinispan.remoting.responses.SuccessfulResponse;
@@ -66,31 +66,36 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     private Configuration configuration;
     private BackupConfiguration bc;
     private boolean xsiteTransferRunning;
-    private DefaultCacheManager defaultCacheManager;
+
+    private EmbeddedCacheManager embeddedCacheManager;
     private GlobalConfiguration globalConfiguration;
     private String sourceSiteName;
     private Map<SiteCachePair, Future<Map<Address, Response>>> xSiteTransferBySiteFutureTasks = new ConcurrentHashMap<SiteCachePair, Future<Map<Address, Response>>>();
     private Map<SiteCachePair, Future<Object>> xSiteTransferBySiteLocalTasks = new ConcurrentHashMap<SiteCachePair, Future<Object>>();
 
 
+    public XSiteStateTransferManagerImpl(String localSiteName) {
+        this.sourceSiteName = localSiteName;
+    }
+
     @Inject
     public void inject(Transport transport,
                        @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService asyncTransportExecutor,
-                       GlobalComponentRegistry gcr, Configuration config, DefaultCacheManager defaultCacheManager, GlobalConfiguration globalConfiguration) {
+                       GlobalComponentRegistry gcr, Configuration config, EmbeddedCacheManager embeddedCacheManager, GlobalConfiguration globalConfiguration) {
         this.transport = transport;
         this.asyncTransportExecutor = asyncTransportExecutor;
         this.gcr = gcr;
         this.configuration = config;
-        this.defaultCacheManager = defaultCacheManager;
-        this.globalConfiguration = globalConfiguration;
-        this.sourceSiteName = globalConfiguration.sites().localSite();
+        this.embeddedCacheManager = embeddedCacheManager;
+        // this.sourceSiteName = globalConfiguration.sites().localSite();
 
     }
 
     @Override
     public Set<XSiteStateTransferResponseInfo> pushState(String destinationSiteName) throws Exception {
         Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
-        Set<String> cacheNames = defaultCacheManager.getCacheNames();
+        //Set<String> cacheNames = defaultCacheManager.getCacheNames();
+        Set<String> cacheNames = embeddedCacheManager.getCacheNames();
         for (String cacheName : cacheNames) {
             Set<XSiteStateTransferResponseInfo> responses = pushState(destinationSiteName, cacheName);
             if (responses != null) {
@@ -101,7 +106,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     }
 
     @Override
-    public void cancelStateTransfer(String destinationSiteName, String cacheName)throws Exception {
+    public void cancelStateTransfer(String destinationSiteName, String cacheName) throws Exception {
         SiteCachePair siteCachePair = new SiteCachePair(destinationSiteName, cacheName);
         Future<Map<Address, Response>> remoteFuture = xSiteTransferBySiteFutureTasks.get(siteCachePair);
         Future<Object> localFuture = xSiteTransferBySiteLocalTasks.get(siteCachePair);
@@ -113,7 +118,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         }
         Address address = transport.getAddress();
         XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, address, XSiteStateRequestCommand.Type.START_XSITE_STATE_CANCEL);
-         Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, destinationSiteName, cacheName, bc.replicationTimeout(), false);
+        Map<Address, Object> results = executeOnClusterSync(xsiteStateRequestCommand, destinationSiteName, cacheName, bc.replicationTimeout(), false);
     }
 
     @Override
@@ -147,9 +152,17 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
 
     private void removeCompletedTask(String destinationSiteName, String cacheName) {
         SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
-        xSiteTransferBySiteFutureTasks.remove(siteCachePair);
-        xSiteTransferBySiteLocalTasks.remove(siteCachePair);
-    }
+        Future<Map<Address, Response>> remoteFuture = xSiteTransferBySiteFutureTasks.get(siteCachePair);
+        Future<Object> localFuture = xSiteTransferBySiteLocalTasks.get(siteCachePair);
+        if(remoteFuture.isDone()) {
+            xSiteTransferBySiteFutureTasks.remove(siteCachePair);
+
+        }
+        if(localFuture.isDone()) {
+            xSiteTransferBySiteLocalTasks.remove(siteCachePair);
+
+        }
+   }
 
 
     private Set<XSiteStateTransferResponseInfo> buildResponseInfo(Map<Address, Object> results, String siteName, String cacheName) {

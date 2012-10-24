@@ -46,14 +46,15 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     }
     //TODO Not sure about this one
-    public static final byte COMMAND_ID = 15;
+    public static final byte COMMAND_ID = 17;
 
     private Type type;
     private String cacheName;
     private String destinationSiteName;
     private Address origin;
-    private XSiteStateProvider xSiteStateProvider;
+    private transient XSiteStateProvider xSiteStateProvider;
     private String sourceSiteName;
+
 
 
     public XSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, Type type) {
@@ -103,7 +104,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     @Override
     public Object[] getParameters() {
-        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, destinationSiteName};
+        return new Object[]{(byte) type.ordinal(), origin, cacheName,sourceSiteName, destinationSiteName};
     }
 
 
@@ -112,8 +113,9 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
     public void setParameters(int commandId, Object[] parameters) {
         int i = 0;
         type = Type.values()[(Byte) parameters[i++]];
-        setOrigin((Address) parameters[i++]);
+        origin = (Address) parameters[i++];
         cacheName = (String) parameters[i++];
+        sourceSiteName = (String) parameters[i++];
         destinationSiteName = (String) parameters[i++];
 
     }
