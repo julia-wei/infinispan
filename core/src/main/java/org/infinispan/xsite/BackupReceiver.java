@@ -96,6 +96,7 @@ public class BackupReceiver {
       }
   }
 
+
    public Object handleRemoteCommand(VisitableCommand command) throws Throwable {
       return command.acceptVisitor(null, siteUpdater);
    }
@@ -210,9 +211,11 @@ public class BackupReceiver {
 
         // GlobalTransaction localTxId = remote2localTx.remove(globalTransaction);
          if (globalTransactionInfo == null) {
-            //TODO instead of throwing an exception, maybe we need to add the transaction to the table with the status commit_received
-           // throw new CacheException("Couldn't find a local transaction corresponding to remote transaction " + globalTransaction);
-           globalTransactionInfo = new GlobalTransactionInfo(globalTransaction, GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED);
+           if(commit){
+               globalTransactionInfo = new GlobalTransactionInfo(globalTransaction, GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED);
+           } else {
+                globalTransactionInfo = new GlobalTransactionInfo(globalTransaction, GlobalTransactionInfo.TransactionStatus.ROLLBACK_RECEIVED);
+           }
            remote2localTx.put(globalTransaction, globalTransactionInfo);
            return;
          }
@@ -234,10 +237,10 @@ public class BackupReceiver {
       private void replayModificationsInTransaction(PrepareCommand command, boolean onePhaseCommit) throws Throwable {
           TransactionManager tm = txManager();
           boolean replaySuccessful = false;
-          boolean commitAlreadyReceived = false;
-          GlobalTransactionInfo globalTransactionInfoFromPreviousCommit = checkForCommitReceivedBeforePrepare(command.getGlobalTransaction());
+          boolean commitOrRollbackAlreadyReceived = false;
+          GlobalTransactionInfo globalTransactionInfoFromPreviousCommit = checkForCommitOrRollbackReceivedBeforePrepare(command.getGlobalTransaction());
           if (globalTransactionInfoFromPreviousCommit != null) {
-              commitAlreadyReceived = true;
+              commitOrRollbackAlreadyReceived = true;
           }
           try {
               tm.begin();
@@ -257,8 +260,12 @@ public class BackupReceiver {
                       tm.rollback();
                   }
               } else {
-                  if (commitAlreadyReceived) {  //have already got the commit for it
-                      tm.commit();
+                  if (commitOrRollbackAlreadyReceived) {  //have already got the commit or rollback for it
+                      if (globalTransactionInfoFromPreviousCommit.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
+                          tm.commit();
+                      } else {
+                          tm.rollback();
+                      }
                   } else {   // Wait for a remote commit/rollback.
                       GlobalTransactionInfo globalTransactionInfo = new GlobalTransactionInfo(localTx.getGlobalTransaction(), GlobalTransactionInfo.TransactionStatus.PREPARED_RECEIVED);
                       remote2localTx.put(command.getGlobalTransaction(), globalTransactionInfo);
@@ -268,15 +275,17 @@ public class BackupReceiver {
           }
       }
 
-       private GlobalTransactionInfo checkForCommitReceivedBeforePrepare(GlobalTransaction globalTransaction) {
-           GlobalTransactionInfo globalTransactionInfo = remote2localTx.get(globalTransaction);
-           if (globalTransactionInfo != null && globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
-               remote2localTx.remove(globalTransaction);
-               return globalTransactionInfo;
-           }
-           return null;
-       }
+     private GlobalTransactionInfo checkForCommitOrRollbackReceivedBeforePrepare(GlobalTransaction globalTransaction) {
+        GlobalTransactionInfo globalTransactionInfo = remote2localTx.get(globalTransaction);
+        if (globalTransactionInfo != null &&
+           (globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED ||
+            globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.ROLLBACK_RECEIVED)) {
 
+            remote2localTx.remove(globalTransaction);
+            return globalTransactionInfo;
+        }
+        return null;
+    }
 
        private TransactionManager txManager() {
          return backupCache.getAdvancedCache().getTransactionManager();

@@ -211,9 +211,13 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
 
         private void replayModifications(XSiteTransactionInfo xSiteTransactionInfo) throws Throwable {
 
-            GlobalTransactionInfo globalTransactionInfoFromPreviousCommit = checkForCommitReceivedBeforePrepare(xSiteTransactionInfo.getGlobalTransaction());
+            GlobalTransactionInfo globalTransactionInfoFromPreviousCommit = checkForCommitOrRollBackReceivedBeforePrepare(xSiteTransactionInfo.getGlobalTransaction());
             if (globalTransactionInfoFromPreviousCommit != null) {
-                completeTransaction(xSiteTransactionInfo);
+                if (globalTransactionInfoFromPreviousCommit.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
+                    completeTransaction(xSiteTransactionInfo, true);
+                } else {
+                    completeTransaction(xSiteTransactionInfo, false);
+                }
                 return;
             }
             TransactionManager tm = txManager();
@@ -233,7 +237,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
             }
         }
 
-        private void completeTransaction(XSiteTransactionInfo xSiteTransactionInfo) throws Throwable {
+        private void completeTransaction(XSiteTransactionInfo xSiteTransactionInfo, boolean commit) throws Throwable {
             TransactionManager tm = txManager();
             try {
                 tm.begin();
@@ -243,9 +247,12 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
             finally {
                 LocalTransaction localTx = txTable().getLocalTransaction(tm.getTransaction());
                 localTx.setFromRemoteSite(true);
-                tm.commit();
-
-
+                if(commit){
+                    tm.commit();
+                }
+                else {
+                    tm.rollback();
+                }
             }
         }
 
@@ -256,9 +263,11 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
 
         }
 
-        private GlobalTransactionInfo checkForCommitReceivedBeforePrepare(GlobalTransaction globalTransaction) {
+        private GlobalTransactionInfo checkForCommitOrRollBackReceivedBeforePrepare(GlobalTransaction globalTransaction) {
             GlobalTransactionInfo globalTransactionInfo = backupReceiver.getGlobalTransactionInfo(globalTransaction);
-            if (globalTransactionInfo != null && globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED) {
+            if (globalTransactionInfo != null &&
+                    (globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.COMMIT_RECEIVED ||
+                            globalTransactionInfo.getTransactionStatus() == GlobalTransactionInfo.TransactionStatus.ROLLBACK_RECEIVED)) {
                 backupReceiver.removeGlobalTransaction(globalTransaction);
                 return globalTransactionInfo;
             }

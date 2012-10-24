@@ -86,7 +86,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
                     return xSiteStateTransferReceiver.applyTransactions(transactionInfo, cacheName);
 
                 case  STATE_TRANFER_COMPLETED:
-                    xSiteStateTransferReceiver.stateTransferCompleted();
+                   // xSiteStateTransferReceiver.stateTransferCompleted();
                     backupReceiverRepository.removeXSiteStateTransferReceiver(originSiteName, cacheName);
 
 

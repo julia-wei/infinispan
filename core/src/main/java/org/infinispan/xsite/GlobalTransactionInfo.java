@@ -10,6 +10,7 @@ public class GlobalTransactionInfo {
 
       PREPARED_RECEIVED,
       COMMIT_RECEIVED,
+      ROLLBACK_RECEIVED
 
     }
     private TransactionStatus transactionStatus;
