@@ -25,6 +25,8 @@ package org.infinispan.factories;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.statetransfer.*;
+import org.infinispan.xsite.statetransfer.XSiteStateProvider;
+import org.infinispan.xsite.statetransfer.XSiteStateProviderImpl;
 
 /**
  * Constructs {@link org.infinispan.statetransfer.StateTransferManager},
@@ -36,7 +38,7 @@ import org.infinispan.statetransfer.*;
  * @author anistor@redhat.com
  * @since 4.0
  */
-@DefaultFactoryFor(classes = {StateTransferManager.class, StateConsumer.class, StateProvider.class})
+@DefaultFactoryFor(classes = {StateTransferManager.class, StateConsumer.class, StateProvider.class, XSiteStateProvider.class})
 public class StateTransferComponentFactory extends AbstractNamedCacheComponentFactory implements AutoInstantiableFactory {
    @Override
    public <T> T construct(Class<T> componentType) {
@@ -49,6 +51,8 @@ public class StateTransferComponentFactory extends AbstractNamedCacheComponentFa
          return componentType.cast(new StateProviderImpl());
       } else if (componentType.equals(StateConsumer.class)) {
          return componentType.cast(new StateConsumerImpl());
+      } else if (componentType.equals(XSiteStateProvider.class)) {
+         return componentType.cast(new XSiteStateProviderImpl());
       }
 
       throw new ConfigurationException("Don't know how to create a " + componentType.getName());

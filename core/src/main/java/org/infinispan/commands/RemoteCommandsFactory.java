@@ -63,6 +63,7 @@ import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.topology.CacheTopologyControlCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
 
 import java.util.Map;
 
@@ -145,6 +146,9 @@ public class RemoteCommandsFactory {
                break;
             case CacheTopologyControlCommand.COMMAND_ID:
                command = new CacheTopologyControlCommand();
+               break;
+             case XSiteStateRequestCommand.COMMAND_ID:
+               command = new XSiteStateRequestCommand();
                break;
             default:
                throw new CacheException("Unknown command id " + id + "!");

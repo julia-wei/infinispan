@@ -46,7 +46,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
 
     }
     //TODO Not sure about this one
-    public static final byte COMMAND_ID = 17;
+    public static final byte COMMAND_ID = 35;
 
     private Type type;
     private String cacheName;
@@ -55,7 +55,8 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
     private transient XSiteStateProvider xSiteStateProvider;
     private String sourceSiteName;
 
-
+    public XSiteStateRequestCommand() {
+    }
 
     public XSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, Type type) {
         this.destinationSiteName = destinationSiteName;

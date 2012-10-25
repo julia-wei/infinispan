@@ -45,6 +45,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
     private String cacheName;
     private Type type;
     private String originSiteName;
+    public static final byte COMMAND_ID = 36;
 
 
     private transient BackupReceiverRepository backupReceiverRepository;
@@ -100,7 +101,7 @@ public class XSiteTransferCommand implements ReplicableCommand {
 
     @Override
     public byte getCommandId() {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return COMMAND_ID;
     }
 
     public List<XSiteTransactionInfo> getTransactionInfo() {

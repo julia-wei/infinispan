@@ -94,6 +94,8 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private List<InternalCacheEntry> currentLoadOfEntries = new ArrayList<InternalCacheEntry>();
 
+    public XSiteStateProviderImpl() {
+    }
 
     @Inject
     public void init(

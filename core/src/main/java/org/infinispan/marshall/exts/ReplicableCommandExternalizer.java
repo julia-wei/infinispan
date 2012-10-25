@@ -44,6 +44,7 @@ import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
 import org.infinispan.topology.CacheTopologyControlCommand;
 import org.infinispan.util.Util;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
 
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -144,7 +145,7 @@ public class ReplicableCommandExternalizer extends AbstractExternalizer<Replicab
    @Override
    public Set<Class<? extends ReplicableCommand>> getTypeClasses() {
        Set<Class<? extends ReplicableCommand>> coreCommands = Util.<Class<? extends ReplicableCommand>>asSet(
-            CacheTopologyControlCommand.class, DistributedExecuteCommand.class, GetKeyValueCommand.class,
+            CacheTopologyControlCommand.class, XSiteStateRequestCommand.class, DistributedExecuteCommand.class, GetKeyValueCommand.class,
             ClearCommand.class, EvictCommand.class, ApplyDeltaCommand.class,
             InvalidateCommand.class, InvalidateL1Command.class,
             PutKeyValueCommand.class, PutMapCommand.class,

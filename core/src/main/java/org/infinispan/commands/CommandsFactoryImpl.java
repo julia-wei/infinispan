@@ -87,6 +87,10 @@ import org.infinispan.transaction.xa.recovery.RecoveryManager;
 import org.infinispan.util.concurrent.locks.LockManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.BackupReceiverRepository;
+import org.infinispan.xsite.statetransfer.XSiteStateProvider;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import javax.transaction.xa.Xid;
 import java.util.Collection;
@@ -128,6 +132,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private LockManager lockManager;
    private InternalEntryFactory entryFactory;
    private MapReduceManager mapReduceManager;
+   private XSiteStateProvider xSiteStateProvider;
+   private BackupReceiverRepository backupReceiverRepository;
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
 
@@ -137,7 +143,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  InvocationContextContainer icc, TransactionTable txTable, Configuration configuration,
                                  @ComponentName(KnownComponentNames.MODULE_COMMAND_INITIALIZERS) Map<Byte, ModuleCommandInitializer> moduleCommandInitializers,
                                  RecoveryManager recoveryManager, StateProvider stateProvider, StateConsumer stateConsumer,
-                                 LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager) {
+                                 LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager, XSiteStateProvider xSiteStateProvider, BackupReceiverRepository backupReceiverRepository) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -153,6 +159,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.lockManager = lockManager;
       this.entryFactory = entryFactory;
       this.mapReduceManager = mapReduceManager;
+      this.xSiteStateProvider = xSiteStateProvider;
+      this.backupReceiverRepository = backupReceiverRepository;
    }
 
    @Start(priority = 1)
@@ -415,6 +423,14 @@ public class CommandsFactoryImpl implements CommandsFactory {
          case DistributedExecuteCommand.COMMAND_ID:
             DistributedExecuteCommand dec = (DistributedExecuteCommand)c;
             dec.init(cache);
+            break;
+         case XSiteStateRequestCommand.COMMAND_ID:
+            XSiteStateRequestCommand xSiteStateRequestCommand = (XSiteStateRequestCommand)c;
+            xSiteStateRequestCommand.init(xSiteStateProvider);
+            break;
+          case XSiteTransferCommand.COMMAND_ID:
+            XSiteTransferCommand xSiteTransferCommand = (XSiteTransferCommand)c;
+            xSiteTransferCommand.init(backupReceiverRepository);
             break;
          case GetInDoubtTxInfoCommand.COMMAND_ID:
             GetInDoubtTxInfoCommand gidTxInfoCommand = (GetInDoubtTxInfoCommand)c;
