@@ -26,10 +26,13 @@ import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.distribution.ch.ConsistentHash;
 import org.infinispan.factories.annotations.ComponentName;
 import org.infinispan.factories.annotations.Inject;
+import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
+import org.infinispan.loaders.CacheStore;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.BackupResponse;
@@ -39,12 +42,17 @@ import org.infinispan.topology.CacheTopology;
 import org.infinispan.topology.LocalTopologyManager;
 import org.infinispan.transaction.TransactionTable;
 import org.infinispan.transaction.xa.CacheTransaction;
+import org.infinispan.util.ReadOnlyDataContainerBackedKeySet;
+import org.infinispan.util.concurrent.AggregatingNotifyingFutureBuilder;
+import org.infinispan.util.concurrent.NotifyingNotifiableFuture;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.XSiteBackup;
 
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.FutureTask;
 
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 
@@ -67,11 +75,24 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     private ExecutorService executorService;
     private long timeout;
     private int chunkSize;
+    private long numOfKeysTransferred;
+
+
+
+       /**
+     * This is used with RpcManager.invokeRemotelyInFuture() to be able to cancel message sending if the task needs to be canceled.
+     */
+    private final NotifyingNotifiableFuture<Object> sendFuture = new AggregatingNotifyingFutureBuilder(null);
 
     /**
-     * A map that keeps track of current XSite state transfers by Site address.
+     * The Future obtained from submitting this task to an executor service. This is used for cancellation.
      */
-    private final Map<SiteCachePair, XSiteOutBoundStateTransferTask> transfersBySite = new HashMap<SiteCachePair, XSiteOutBoundStateTransferTask>();
+    private FutureTask runnableFuture;
+
+
+    private int accumulatedEntries;
+
+    private List<InternalCacheEntry> currentLoadOfEntries = new ArrayList<InternalCacheEntry>();
 
 
     @Inject
@@ -97,34 +118,30 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
     public boolean isStateTransferInProgress() {
-        synchronized (transfersBySite) {
-            return !transfersBySite.isEmpty();
-        }
+        return runnableFuture != null && !runnableFuture.isCancelled();
     }
 
     @Override
-    public Object startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
+    public long startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
+
         List<TransactionInfo> transactions = getTransactionsForCache(destinationSiteName, cacheName, origin);
         List<XSiteTransactionInfo> transactionInfoList = translateToXSiteTransaction(transactions);
         if (!transactionInfoList.isEmpty()) {
             pushTransacationsToSite(transactionInfoList, destinationSiteName, sourceSiteName, cacheName, origin);
         }
-        Object object = startCacheStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
+        startCacheStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
+
+        onCashStateTransferTaskCompletion(destinationSiteName, cacheName, origin);
         //now send the state transfer complete command
-        completeStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
-        return object;
+        sendStateTransferCompleteCommand(destinationSiteName, sourceSiteName, cacheName, origin);
+        long result =  numOfKeysTransferred;
+        return result;
     }
 
     @Override
     public void cancelXSiteStateTransfer(String destinationSiteName, String cacheName) throws Exception {
         if (isStateTransferInProgress()) {
-            SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
-            synchronized (transfersBySite) {
-                XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = transfersBySite.get(siteCachePair);
-                if (xSiteOutBoundStateTransferTask != null) {
-                    xSiteOutBoundStateTransferTask.cancel();
-                }
-            }
+               runnableFuture.cancel(true);
         } else {
             if (trace) {
                 log.tracef("State transfer to the site % for the cache % is not running", destinationSiteName, cacheName);
@@ -144,23 +161,149 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
 
-    private Set<Object> startCacheStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) {
+    private void startCacheStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) {
         log.tracef("Starting outbound transfer of cache  %s to site", cacheName,
                 destinationSiteName);
 
         //TODO need to get the timeout for the xsite state transfer or use the replication timeout
         timeout = configuration.clustering().stateTransfer().timeout();
-        XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask = new XSiteOutBoundStateTransferTask(destinationSiteName, sourceSiteName, this, dataContainer, cacheLoaderManager, configuration, cacheName, origin, transport, timeout, chunkSize);
-        addXSiteStateTransfer(xSiteOutBoundStateTransferTask);
-        xSiteOutBoundStateTransferTask.execute(executorService);
-        Set<Object> transferredKeys = null;
-        if (xSiteOutBoundStateTransferTask.isDone()) {
-            transferredKeys = xSiteOutBoundStateTransferTask.getTransferredKeys();
-            onTaskCompletion(xSiteOutBoundStateTransferTask);
+        if (runnableFuture != null) {
+            throw new IllegalStateException("This task was already submitted");
         }
-        return transferredKeys;
+        StateTransferThread thread = new StateTransferThread(destinationSiteName, sourceSiteName, cacheName, origin);
+         runnableFuture = new FutureTask<Void>(thread);
+
+        executorService.submit(runnableFuture);
+
+        if(runnableFuture.isDone()){
+            return;
+        }
+
+    }
+   private class StateTransferThread implements Callable {
+       private final String destinationName;
+        private final String sourceSiteName;
+       private final Address origin;
+       private final String cacheName;
+
+       public StateTransferThread(String destinationName, String sourceSiteName, String cacheName, Address origin ){
+           this.destinationName = destinationName;
+           this.sourceSiteName = sourceSiteName;
+           this.origin = origin;
+           this. cacheName = cacheName;
+       }
+       public Object call() {
+            try {
+               sendCacheState(destinationName,sourceSiteName, cacheName, origin );
+            } catch (Throwable e) {
+               e.printStackTrace();
+            }
+           return null;
+         }
+   }
+
+    private void sendCacheState(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) {
+         try {
+            // send data container entries
+            List<InternalCacheEntry> listOfEntriesToSend = new ArrayList<InternalCacheEntry>();
+            for (InternalCacheEntry ice : dataContainer) {
+                sendEntry(ice, origin, cacheName, sourceSiteName, destinationSiteName);
+            }
+
+            // send cache store entries if needed
+            CacheStore cacheStore = getCacheStore();
+            if (cacheStore != null) {
+                try {
+
+                    Set<Object> storedKeys = cacheStore.loadAllKeys(new ReadOnlyDataContainerBackedKeySet(dataContainer));
+                    for (Object key : storedKeys) {
+
+                        try {
+                            InternalCacheEntry ice = cacheStore.load(key);
+                            if (ice != null) { // check entry still exists
+                                sendEntry(ice, origin, cacheName, sourceSiteName, destinationSiteName);
+                            }
+                        } catch (CacheLoaderException e) {
+                            log.failedLoadingValueFromCacheStore(key, e);
+                        }
+                    }
+
+                } catch (CacheLoaderException e) {
+                    log.failedLoadingKeysFromCacheStore(e);
+                }
+            } else {
+                if (trace) {
+                    log.tracef("No cache store or the cache store is shared, no need to send any stored cache entries for cache: %s", cacheName);
+                }
+            }
+
+            // send all the remaining entries in one shot
+            sendEntries(true, origin, cacheName, sourceSiteName, destinationSiteName);
+        } catch (Throwable t) {
+            // ignore eventual exceptions caused by cancellation (have InterruptedException as the root cause)
+            if (!runnableFuture.isCancelled()) {
+                log.error("Failed to execute outbound transfer", t);
+            }
+        }
+        if (trace) {
+            log.tracef("Outbound transfer of keys to remote %s is complete", destinationSiteName);
+        }
+
     }
 
+     /**
+     * Obtains the CacheStore that will be used for pulling segments that will be sent to other new owners on request.
+     * The CacheStore is ignored if it is disabled or if it is shared or if fetchPersistentState is disabled.
+     */
+    private CacheStore getCacheStore() {
+        if (cacheLoaderManager != null && cacheLoaderManager.isEnabled() && !cacheLoaderManager.isShared() && cacheLoaderManager.isFetchPersistentState()) {
+            return cacheLoaderManager.getCacheStore();
+        }
+        return null;
+    }
+
+    private void sendEntry(InternalCacheEntry ice, Address origin, String cacheName, String sourceSiteName, String destinationSiteName) throws Exception {
+        // send if we have a full chunk
+        if (accumulatedEntries >= chunkSize) {
+            sendEntries(false, origin, cacheName, sourceSiteName, destinationSiteName);
+            currentLoadOfEntries.clear();
+            accumulatedEntries = 0;
+        }
+        currentLoadOfEntries.add(ice);
+        accumulatedEntries++;
+    }
+
+
+    private void sendEntries(boolean isLastLoad, Address origin, String cacheName, String sourceSiteName, String destinationSiteName) throws Exception {
+        if (!currentLoadOfEntries.isEmpty()) {
+
+
+            XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFERRED, origin,cacheName, sourceSiteName, currentLoadOfEntries,  null);
+            List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
+            BackupConfiguration bc =  getBackupConfigurationForSite(destinationSiteName);
+
+            boolean isSync = bc.strategy() == BackupConfiguration.BackupStrategy.SYNC;
+            XSiteBackup bi = new XSiteBackup(bc.site(), isSync, bc.replicationTimeout());
+            backupInfo.add(bi);
+
+            transport.backupRemotely(backupInfo, xSiteTransferCommand);
+            calculateTransferredKeys(currentLoadOfEntries);
+
+
+        }
+        if (isLastLoad) {
+            currentLoadOfEntries.clear();
+            accumulatedEntries = 0;
+        }
+    }
+
+
+    private void calculateTransferredKeys(List<InternalCacheEntry> transferredEntries) {
+        if (transferredEntries != null) {
+
+                numOfKeysTransferred +=transferredEntries.size();
+            }
+        }
 
     private List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address) {
 
@@ -213,7 +356,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         }
     }
 
-    private void completeStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
+    private void sendStateTransferCompleteCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
 
         XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANFER_COMPLETED, origin, cacheName, sourceSiteName, null, null);
         List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
@@ -262,18 +405,6 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         }
     }
 
-    private void addXSiteStateTransfer(XSiteOutBoundStateTransferTask xSiteOutBoundStateTransferTask) {
-        if (trace) {
-            log.tracef("Adding outbound Xsite transfer task for site %s from node %s", xSiteOutBoundStateTransferTask.getDestinationSiteName(), xSiteOutBoundStateTransferTask.getSource());
-        }
-        synchronized (transfersBySite) {
-            SiteCachePair siteCachePair = new SiteCachePair(xSiteOutBoundStateTransferTask.getCacheName(), xSiteOutBoundStateTransferTask.getDestinationSiteName());
-
-            transfersBySite.put(siteCachePair, xSiteOutBoundStateTransferTask);
-        }
-
-
-    }
 
     public BackupConfiguration getBackupConfigurationForSite(String siteName) {
 
@@ -286,23 +417,16 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     }
 
 
-    private void removeTransfer(XSiteOutBoundStateTransferTask transferTask) {
-        synchronized (transfersBySite) {
-            if (transferTask != null && !transfersBySite.isEmpty()) {
-                SiteCachePair siteCachePair = new SiteCachePair(transferTask.getCacheName(), transferTask.getDestinationSiteName());
-                transfersBySite.remove(siteCachePair);
-            }
-        }
-    }
-
-    public void onTaskCompletion(XSiteOutBoundStateTransferTask transferTask) {
+    public void onCashStateTransferTaskCompletion(String destinationSiteName, String cacheName, Address origin) {
         if (trace) {
-            //TODO message regarding the cancellation or completion of state transfer task
-            log.tracef("Removing outBoundXSiteTransferTask from the node %s to %s",
-                    transferTask.isCancelled() ? "cancelled" : "completed", transferTask.getSource(), transferTask.getDestinationSiteName());
-        }
 
-        removeTransfer(transferTask);
+            log.tracef("The transfer of cache %s to site %s is completed",
+                    cacheName, destinationSiteName, origin);
+        }
+        runnableFuture = null;
+        numOfKeysTransferred = 0;
+        currentLoadOfEntries.clear();
+        accumulatedEntries = 0;
     }
 
 

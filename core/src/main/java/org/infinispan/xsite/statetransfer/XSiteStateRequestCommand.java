@@ -80,6 +80,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
                     Object responseValue = xSiteStateProvider.startXSiteStateTransfer(destinationSiteName, sourceSiteName, cacheName, origin);
                     return SuccessfulResponse.create(responseValue);
                 case START_XSITE_STATE_CANCEL:
+                    xSiteStateProvider.cancelXSiteStateTransfer(destinationSiteName, cacheName);
                     
                 default:
                     throw new CacheException("Unknown state request command type: " + type);

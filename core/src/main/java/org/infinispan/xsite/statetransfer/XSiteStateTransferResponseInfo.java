@@ -11,13 +11,13 @@ import java.util.Set;
 public class XSiteStateTransferResponseInfo {
     private final String siteName;
     private final Address nodeAddress;
-    private final Set<Object> keysTransferred;
+    private final long numOfKeysTransferred;
     private final String cacheName;
 
-    public XSiteStateTransferResponseInfo(String siteName, Address nodeAddress, Set<Object> keysTransferred, String cacheName) {
+    public XSiteStateTransferResponseInfo(String siteName, Address nodeAddress,long numOfKeysTransferred, String cacheName) {
         this.siteName = siteName;
         this.nodeAddress = nodeAddress;
-        this.keysTransferred = keysTransferred;
+        this.numOfKeysTransferred = numOfKeysTransferred;
         this.cacheName = cacheName;
     }
 
@@ -27,7 +27,7 @@ public class XSiteStateTransferResponseInfo {
                 "siteName='" + siteName + '\'' +
                 ", nodeAddress=" + nodeAddress +
                 ", cacheName=" + cacheName +
-                ", keysTransferred=" + keysTransferred +
+                ", numOfKeysTransferred=" + numOfKeysTransferred +
                 '}';
     }
 

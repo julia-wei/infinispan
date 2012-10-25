@@ -13,6 +13,6 @@ import java.util.List;
 @Scope(Scopes.NAMED_CACHE)
 public interface XSiteStateProvider {
     
-    Object startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception;
+    long startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception;
     void cancelXSiteStateTransfer(String destinationSiteName, String cacheName) throws Exception;
 }

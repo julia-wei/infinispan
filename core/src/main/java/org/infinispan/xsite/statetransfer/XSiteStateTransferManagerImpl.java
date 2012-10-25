@@ -168,7 +168,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     private Set<XSiteStateTransferResponseInfo> buildResponseInfo(Map<Address, Object> results, String siteName, String cacheName) {
         Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
         for (Map.Entry<Address, Object> entry : results.entrySet()) {
-            XSiteStateTransferResponseInfo xSiteStateTransferResponseInfo = new XSiteStateTransferResponseInfo(siteName, entry.getKey(), (Set<Object>) entry.getValue(), cacheName);
+            XSiteStateTransferResponseInfo xSiteStateTransferResponseInfo = new XSiteStateTransferResponseInfo(siteName, entry.getKey(), (Long) entry.getValue(), cacheName);
             xSiteStateTransferResponseInfos.add(xSiteStateTransferResponseInfo);
         }
         return xSiteStateTransferResponseInfos;
