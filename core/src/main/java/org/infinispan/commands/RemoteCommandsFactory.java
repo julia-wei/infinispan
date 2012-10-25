@@ -147,9 +147,7 @@ public class RemoteCommandsFactory {
             case CacheTopologyControlCommand.COMMAND_ID:
                command = new CacheTopologyControlCommand();
                break;
-             case XSiteStateRequestCommand.COMMAND_ID:
-               command = new XSiteStateRequestCommand();
-               break;
+
             default:
                throw new CacheException("Unknown command id " + id + "!");
          }
@@ -206,6 +204,9 @@ public class RemoteCommandsFactory {
                break;
             case StateRequestCommand.COMMAND_ID:
                command = new StateRequestCommand(cacheName);
+               break;
+            case XSiteStateRequestCommand.COMMAND_ID:
+               command = new XSiteStateRequestCommand(cacheName);
                break;
             case StateResponseCommand.COMMAND_ID:
                command = new StateResponseCommand(cacheName);

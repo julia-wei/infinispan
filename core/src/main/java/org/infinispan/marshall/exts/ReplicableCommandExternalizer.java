@@ -145,7 +145,7 @@ public class ReplicableCommandExternalizer extends AbstractExternalizer<Replicab
    @Override
    public Set<Class<? extends ReplicableCommand>> getTypeClasses() {
        Set<Class<? extends ReplicableCommand>> coreCommands = Util.<Class<? extends ReplicableCommand>>asSet(
-            CacheTopologyControlCommand.class, XSiteStateRequestCommand.class, DistributedExecuteCommand.class, GetKeyValueCommand.class,
+            CacheTopologyControlCommand.class, DistributedExecuteCommand.class, GetKeyValueCommand.class,
             ClearCommand.class, EvictCommand.class, ApplyDeltaCommand.class,
             InvalidateCommand.class, InvalidateL1Command.class,
             PutKeyValueCommand.class, PutMapCommand.class,

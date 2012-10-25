@@ -56,6 +56,7 @@ import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.GlobalTransaction;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
 
 import javax.transaction.xa.Xid;
 import java.util.Collection;
@@ -296,6 +297,13 @@ public interface CommandsFactory {
     * Builds a StateRequestCommand used for requesting transactions and locks and for starting or canceling transfer of cache entries.
     */
    StateRequestCommand buildStateRequestCommand(StateRequestCommand.Type subtype, Address sender, int viewId, Set<Integer> segments);
+
+
+    /**
+     * Builds a StateRequestCommand used for requesting transactions and locks and for starting or canceling transfer of cache entries.
+     */
+    XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, XSiteStateRequestCommand.Type type);
+
 
    /**
     * Builds a StateResponseCommand used for pushing cache entries to another node in response to a StateRequestCommand.

@@ -475,7 +475,12 @@ public class CommandsFactoryImpl implements CommandsFactory {
       return new StateRequestCommand(cacheName, subtype, sender, viewId, segments);
    }
 
-   @Override
+    @Override
+    public XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, XSiteStateRequestCommand.Type type) {
+        return new XSiteStateRequestCommand(destinationSiteName, sourceSiteName, cacheName, address, type) ;
+    }
+
+    @Override
    public StateResponseCommand buildStateResponseCommand(Address sender, int viewId, Collection<StateChunk> stateChunks) {
       return new StateResponseCommand(cacheName, sender, viewId, stateChunks);
    }

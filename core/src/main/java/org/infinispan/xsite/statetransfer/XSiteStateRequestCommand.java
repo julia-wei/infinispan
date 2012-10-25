@@ -25,6 +25,7 @@ package org.infinispan.xsite.statetransfer;
 
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.remote.BaseRpcCommand;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.remoting.responses.SuccessfulResponse;
@@ -35,7 +36,7 @@ import org.infinispan.util.logging.LogFactory;
 /**
  *
  */
-public class XSiteStateRequestCommand implements ReplicableCommand {
+public class XSiteStateRequestCommand extends BaseRpcCommand {
 
     private static final Log log = LogFactory.getLog(XSiteStateRequestCommand.class);
 
@@ -49,21 +50,25 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
     public static final byte COMMAND_ID = 35;
 
     private Type type;
-    private String cacheName;
+
     private String destinationSiteName;
     private Address origin;
     private transient XSiteStateProvider xSiteStateProvider;
     private String sourceSiteName;
 
-    public XSiteStateRequestCommand() {
-    }
 
     public XSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, Type type) {
+        super(cacheName);
         this.destinationSiteName = destinationSiteName;
-        this.cacheName = cacheName;
+
         this.origin = address;
         this.type = type;
         this.sourceSiteName = sourceSiteName;
+    }
+
+    public XSiteStateRequestCommand(String cacheName) {
+        super(cacheName);
+
     }
 
     @Inject
@@ -116,7 +121,7 @@ public class XSiteStateRequestCommand implements ReplicableCommand {
         int i = 0;
         type = Type.values()[(Byte) parameters[i++]];
         origin = (Address) parameters[i++];
-        cacheName = (String) parameters[i++];
+       
         sourceSiteName = (String) parameters[i++];
         destinationSiteName = (String) parameters[i++];
 
