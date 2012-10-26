@@ -24,7 +24,7 @@
 package org.infinispan.xsite.statetransfer;
 
 import org.infinispan.CacheException;
-import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.remote.BaseRpcCommand;
 import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
@@ -36,13 +36,13 @@ import org.infinispan.xsite.BackupReceiverRepository;
 import java.util.List;
 
 
-public class XSiteTransferCommand implements ReplicableCommand {
+public class XSiteTransferCommand extends BaseRpcCommand {
 
     private static final Log log = LogFactory.getLog(XSiteTransferCommand.class);
     private List<XSiteTransactionInfo> transactionInfo;
     private Address origin;
     private List<InternalCacheEntry> internalCacheEntries;
-    private String cacheName;
+
     private Type type;
     private String originSiteName;
     public static final byte COMMAND_ID = 36;
@@ -54,14 +54,18 @@ public class XSiteTransferCommand implements ReplicableCommand {
 
         TRANSACTION_TRANSFERRED,
         STATE_TRANSFERRED,
-        STATE_TRANFER_COMPLETED
-   }
+        STATE_TRANSFER_COMPLETED
+    }
 
+    public XSiteTransferCommand(String cacheName) {
+        super(cacheName);
+    }
 
     public XSiteTransferCommand(Type type, Address origin, String cacheName, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo) {
+        super(cacheName);
         this.origin = origin;
         this.internalCacheEntries = internalCacheEntries;
-        this.cacheName = cacheName;
+
         this.transactionInfo = transactionInfo;
         this.type = type;
         this.originSiteName = originSiteName;
@@ -81,15 +85,15 @@ public class XSiteTransferCommand implements ReplicableCommand {
         try {
             switch (type) {
                 case STATE_TRANSFERRED:
-                   return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
+                    return xSiteStateTransferReceiver.applyState(origin, internalCacheEntries);
 
                 case TRANSACTION_TRANSFERRED:
                     return xSiteStateTransferReceiver.applyTransactions(transactionInfo, cacheName);
 
-                case  STATE_TRANFER_COMPLETED:
-                   // xSiteStateTransferReceiver.stateTransferCompleted();
+                case STATE_TRANSFER_COMPLETED:
+                    // xSiteStateTransferReceiver.stateTransferCompleted();
                     backupReceiverRepository.removeXSiteStateTransferReceiver(originSiteName, cacheName);
-
+                    return null;
 
                 default:
                     throw new CacheException("Unknown state request command type: " + type);
@@ -116,17 +120,13 @@ public class XSiteTransferCommand implements ReplicableCommand {
         return internalCacheEntries;
     }
 
-    public String getCacheName() {
-        return cacheName;
-    }
-
     public Type getType() {
         return type;
     }
 
     @Override
     public Object[] getParameters() {
-        return new Object[]{(byte) type.ordinal(), getOrigin(), cacheName, internalCacheEntries, transactionInfo, originSiteName};
+        return new Object[]{(byte) type.ordinal(), getOrigin(), originSiteName, internalCacheEntries, transactionInfo };
     }
 
     public void setTransactionInfo(List<XSiteTransactionInfo> transactionInfo) {
@@ -141,10 +141,6 @@ public class XSiteTransferCommand implements ReplicableCommand {
         this.internalCacheEntries = internalCacheEntries;
     }
 
-    public void setCacheName(String cacheName) {
-        this.cacheName = cacheName;
-    }
-
     public void setType(Type type) {
         this.type = type;
     }
@@ -156,12 +152,13 @@ public class XSiteTransferCommand implements ReplicableCommand {
     @Override
     public void setParameters(int commandId, Object[] parameters) {
         int i = 0;
-        setOrigin((Address) parameters[i++]);
-        setInternalCacheEntries((List<InternalCacheEntry>) parameters[i++]);
-        setCacheName((String) parameters[i++]);
-        setTransactionInfo((List<XSiteTransactionInfo>) parameters[i++]);
         type = Type.values()[(Byte) parameters[i++]];
-        setOriginSiteName((String)parameters[i++]);
+        setOrigin((Address) parameters[i++]);
+        setOriginSiteName((String) parameters[i++]);
+        setInternalCacheEntries((List<InternalCacheEntry>) parameters[i++]);
+        setTransactionInfo((List<XSiteTransactionInfo>) parameters[i++]);
+
+
     }
 
     @Override
@@ -178,6 +175,6 @@ public class XSiteTransferCommand implements ReplicableCommand {
 
     @Override
     public boolean isReturnValueExpected() {
-       return true;
+        return true;
     }
 }

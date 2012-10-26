@@ -21,6 +21,8 @@ package org.infinispan.xsite;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.remote.BaseRpcCommand;
+import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.annotations.Inject;
@@ -29,6 +31,7 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferReceiver;
 import org.infinispan.xsite.statetransfer.XSiteStateTransferReceiverImpl;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 import org.jgroups.protocols.relay.SiteAddress;
 import org.jgroups.protocols.relay.SiteUUID;
 
@@ -64,6 +67,16 @@ public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
       BackupReceiver localBackupCache = getBackupCacheManager(SiteUUID.getSiteName(src.getSite()), name);
       return localBackupCache.handleRemoteCommand((VisitableCommand)cmd.getCommand());
    }
+
+    @Override
+    public Object handleRemoteCommandForXSiteTransfer(BaseRpcCommand cmd, SiteAddress src) throws Throwable {
+      log.tracef("Handling command %s from remote site %s", cmd, src);
+      String name = cmd.getCacheName();
+       ((XSiteTransferCommand)cmd).init(this);
+      //BackupReceiver localBackupCache = getBackupCacheManager(SiteUUID.getSiteName(src.getSite()), name);
+      return cmd.perform(null) ;
+    }
+
 
     @Override
     public XSiteStateTransferReceiver getXSiteStateTransferReceiver(String remoteSiteName, String cacheName) {

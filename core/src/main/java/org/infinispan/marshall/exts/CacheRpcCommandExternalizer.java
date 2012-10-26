@@ -51,6 +51,8 @@ import org.infinispan.marshall.jboss.ExtendedRiverUnmarshaller;
 import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.util.Util;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -88,7 +90,8 @@ public final class CacheRpcCommandExternalizer extends AbstractExternalizer<Cach
             TxCompletionNotificationCommand.class, GetInDoubtTransactionsCommand.class,
             GetInDoubtTxInfoCommand.class, CompleteTransactionCommand.class,
             VersionedPrepareCommand.class, CreateCacheCommand.class,
-            VersionedCommitCommand.class);
+            VersionedCommitCommand.class, XSiteStateRequestCommand.class,
+            XSiteTransferCommand.class);
       // Only interested in cache specific replicable commands
       coreCommands.addAll(gcr.getModuleProperties().moduleCacheRpcCommands());
       return coreCommands;

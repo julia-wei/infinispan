@@ -25,6 +25,8 @@ package org.infinispan.factories;
 import org.infinispan.config.ConfigurationException;
 import org.infinispan.factories.annotations.DefaultFactoryFor;
 import org.infinispan.statetransfer.*;
+import org.infinispan.xsite.BackupReceiverRepository;
+import org.infinispan.xsite.BackupReceiverRepositoryImpl;
 import org.infinispan.xsite.statetransfer.XSiteStateProvider;
 import org.infinispan.xsite.statetransfer.XSiteStateProviderImpl;
 
@@ -53,7 +55,7 @@ public class StateTransferComponentFactory extends AbstractNamedCacheComponentFa
          return componentType.cast(new StateConsumerImpl());
       } else if (componentType.equals(XSiteStateProvider.class)) {
          return componentType.cast(new XSiteStateProviderImpl());
-      }
+      } 
 
       throw new ConfigurationException("Don't know how to create a " + componentType.getName());
    }

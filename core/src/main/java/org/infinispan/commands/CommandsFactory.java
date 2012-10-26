@@ -45,6 +45,7 @@ import org.infinispan.commands.tx.RollbackCommand;
 import org.infinispan.commands.tx.VersionedCommitCommand;
 import org.infinispan.commands.tx.VersionedPrepareCommand;
 import org.infinispan.commands.write.*;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.distexec.mapreduce.Mapper;
@@ -57,6 +58,8 @@ import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.transaction.xa.GlobalTransaction;
 import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransactionInfo;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import javax.transaction.xa.Xid;
 import java.util.Collection;
@@ -300,12 +303,19 @@ public interface CommandsFactory {
 
 
     /**
-     * Builds a StateRequestCommand used for requesting transactions and locks and for starting or canceling transfer of cache entries.
+     * Builds a XSiteRequestCommand used for requesting transactions and locks and for starting or canceling transfer of cache entries.
      */
-    XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, XSiteStateRequestCommand.Type type);
+    XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName,  Address address, XSiteStateRequestCommand.Type type);
+
+    /**
+     * Builds a XSiteRequestCommand used for requesting transactions and locks and for starting or canceling transfer of cache entries.
+     */
+    XSiteTransferCommand buildXSiteTransferRequestCommand(XSiteTransferCommand.Type type, Address origin, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo);
 
 
-   /**
+
+
+    /**
     * Builds a StateResponseCommand used for pushing cache entries to another node in response to a StateRequestCommand.
     */
    StateResponseCommand buildStateResponseCommand(Address sender, int viewId, Collection<StateChunk> stateChunks);

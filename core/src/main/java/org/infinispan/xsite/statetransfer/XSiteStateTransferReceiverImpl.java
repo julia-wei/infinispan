@@ -26,11 +26,8 @@ import org.infinispan.xsite.GlobalTransactionInfo;
 import javax.transaction.TransactionManager;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import static org.infinispan.context.Flag.*;
 
 /**
 
@@ -89,7 +86,7 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
 
     @Override
     public Object applyState(Address sender, Collection<InternalCacheEntry> cacheEntries) {
-        return doApplyState(sender, cacheEntries);
+        return xSiteBackupCacheUpdater.doApplyState(sender, cacheEntries);
     }
 
     @Override
@@ -110,34 +107,6 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
         xSiteBackupCacheUpdater.replayModifications(xSiteTransactionInfo);
     }
 
-    private Object doApplyState(Address sender, Collection<InternalCacheEntry> cacheEntries) {
-        log.debugf("Applying new state for Xsite transfer from %s: received %d cache entries", sender, cacheEntries.size());
-
-        if (trace) {
-            List<Object> keys = new ArrayList<Object>(cacheEntries.size());
-            for (InternalCacheEntry e : cacheEntries) {
-                keys.add(e.getKey());
-            }
-            log.tracef("Received keys: %s", keys);
-        }
-
-        EnumSet<Flag> flags = EnumSet.of(IGNORE_RETURN_VALUES, SKIP_SHARED_CACHE_STORE, SKIP_LOCKING, SKIP_OWNERSHIP_CHECK, SKIP_XSITE_BACKUP);
-        for (InternalCacheEntry e : cacheEntries) {
-            InvocationContext ctx = icc.createRemoteInvocationContext(sender);
-            // locking not necessary as during rehashing we block all transactions
-            try {
-                PutKeyValueCommand put = useVersionedPut ?
-                        commandsFactory.buildVersionedPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), e.getVersion(), flags)
-                        : commandsFactory.buildPutKeyValueCommand(e.getKey(), e.getValue(), e.getLifespan(), e.getMaxIdle(), flags);
-                put.setPutIfAbsent(true);
-                interceptorChain.invoke(ctx, put);
-            } catch (Exception ex) {
-                log.problemApplyingStateForKey(ex.getMessage(), e.getKey());
-            }
-        }
-        //TODO need to determine which object to return here
-        return null;
-    }
 
     public static final class XSiteBackupCacheUpdater extends AbstractVisitor {
 
@@ -247,10 +216,9 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
             finally {
                 LocalTransaction localTx = txTable().getLocalTransaction(tm.getTransaction());
                 localTx.setFromRemoteSite(true);
-                if(commit){
+                if (commit) {
                     tm.commit();
-                }
-                else {
+                } else {
                     tm.rollback();
                 }
             }
@@ -274,7 +242,25 @@ public class XSiteStateTransferReceiverImpl implements XSiteStateTransferReceive
             return null;
         }
 
+        public Object doApplyState(Address sender, Collection<InternalCacheEntry> cacheEntries) {
+            log.debugf("Applying new state for Xsite transfer from %s: received %d cache entries", sender, cacheEntries.size());
+
+            if (trace) {
+                List<Object> keys = new ArrayList<Object>(cacheEntries.size());
+                for (InternalCacheEntry e : cacheEntries) {
+                    keys.add(e.getKey());
+                }
+                log.tracef("Received keys: %s", keys);
+            }
+            for (InternalCacheEntry e : cacheEntries) {
+
+                return backupCache.putIfAbsent(e.getKey(), e.getValue(),
+                        e.getLifespan(), TimeUnit.MILLISECONDS,
+                        e.getMaxIdle(), TimeUnit.MILLISECONDS);
+
+            }
+            return null;
+        }
+
     }
-
-
 }

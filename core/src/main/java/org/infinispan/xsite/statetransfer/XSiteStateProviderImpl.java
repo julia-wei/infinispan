@@ -22,6 +22,7 @@
  */
 package org.infinispan.xsite.statetransfer;
 
+import org.infinispan.Cache;
 import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.BackupConfiguration;
 import org.infinispan.configuration.cache.Configuration;
@@ -33,6 +34,7 @@ import org.infinispan.factories.annotations.Inject;
 import org.infinispan.loaders.CacheLoaderException;
 import org.infinispan.loaders.CacheLoaderManager;
 import org.infinispan.loaders.CacheStore;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.remoting.transport.BackupResponse;
@@ -76,6 +78,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     private long timeout;
     private int chunkSize;
     private long numOfKeysTransferred;
+    private EmbeddedCacheManager embeddedCacheManager;
 
 
 
@@ -103,7 +106,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
             @ComponentName(ASYNC_TRANSPORT_EXECUTOR) ExecutorService executorService,
             RpcManager rpcManager, Configuration configuration,
             TransactionTable transactionTable,
-            Transport transport, DataContainer dataContainer, CacheLoaderManager cacheLoaderManager) {
+            Transport transport, DataContainer dataContainer, CacheLoaderManager cacheLoaderManager, EmbeddedCacheManager embeddedCacheManager) {
 
         this.rpcManager = rpcManager;
         this.localTopologyManager = localTopologyManager;
@@ -117,6 +120,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         //TODO get it from the site configuration
         int chunkSize = configuration.clustering().stateTransfer().chunkSize();
         this.chunkSize = chunkSize > 0 ? chunkSize : Integer.MAX_VALUE;
+        this.embeddedCacheManager = embeddedCacheManager;
     }
 
     public boolean isStateTransferInProgress() {
@@ -307,12 +311,16 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
             }
         }
 
-    private List<TransactionInfo> getTransactionsForCache(String cacheName, String siteName, Address address) {
+    private List<TransactionInfo> getTransactionsForCache(String siteName, String cacheName, Address address) {
 
         if (trace) {
             log.tracef("Received request for cross site transfer of transactions from node %s for site name %s for cache %s", address, siteName, cacheName);
         }
 
+        Cache cache = embeddedCacheManager.getCache(cacheName);
+        if(cache.getStatus().isTerminated()){
+            cache.start();
+        }
         CacheTopology cacheTopology = localTopologyManager.getCacheTopology(cacheName);
 
 
@@ -360,7 +368,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
 
     private void sendStateTransferCompleteCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception {
 
-        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANFER_COMPLETED, origin, cacheName, sourceSiteName, null, null);
+        XSiteTransferCommand xSiteTransferCommand = new XSiteTransferCommand(XSiteTransferCommand.Type.STATE_TRANSFER_COMPLETED, origin, cacheName, sourceSiteName, null, null);
         List<XSiteBackup> backupInfo = new ArrayList<XSiteBackup>(1);
         BackupConfiguration bc = getBackupConfigurationForSite(destinationSiteName);
         if (bc == null) {

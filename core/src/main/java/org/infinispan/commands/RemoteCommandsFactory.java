@@ -64,6 +64,7 @@ import org.infinispan.statetransfer.StateRequestCommand;
 import org.infinispan.statetransfer.StateResponseCommand;
 import org.infinispan.topology.CacheTopologyControlCommand;
 import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import java.util.Map;
 
@@ -208,6 +209,10 @@ public class RemoteCommandsFactory {
             case XSiteStateRequestCommand.COMMAND_ID:
                command = new XSiteStateRequestCommand(cacheName);
                break;
+             case XSiteTransferCommand.COMMAND_ID:
+               command = new XSiteTransferCommand(cacheName);
+               break;
+
             case StateResponseCommand.COMMAND_ID:
                command = new StateResponseCommand(cacheName);
                break;

@@ -96,6 +96,7 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
         //Set<String> cacheNames = defaultCacheManager.getCacheNames();
         Set<String> cacheNames = embeddedCacheManager.getCacheNames();
+
         for (String cacheName : cacheNames) {
             Set<XSiteStateTransferResponseInfo> responses = pushState(destinationSiteName, cacheName);
             if (responses != null) {
@@ -154,15 +155,15 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
         Future<Map<Address, Response>> remoteFuture = xSiteTransferBySiteFutureTasks.get(siteCachePair);
         Future<Object> localFuture = xSiteTransferBySiteLocalTasks.get(siteCachePair);
-        if(remoteFuture.isDone()) {
+        if (remoteFuture.isDone()) {
             xSiteTransferBySiteFutureTasks.remove(siteCachePair);
 
         }
-        if(localFuture.isDone()) {
-            xSiteTransferBySiteLocalTasks.remove(siteCachePair);
-
-        }
-   }
+//        if (localFuture.isDone()) {
+//            xSiteTransferBySiteLocalTasks.remove(siteCachePair);
+//
+//        }
+    }
 
 
     private Set<XSiteStateTransferResponseInfo> buildResponseInfo(Map<Address, Object> results, String siteName, String cacheName) {
@@ -201,21 +202,21 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         });
 
         // now invoke the command on the local node
-        Future<Object> localFuture = asyncTransportExecutor.submit(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                gcr.wireDependencies(command);
-                try {
-                    return command.perform(null);
-                } catch (Throwable t) {
-                    throw new Exception(t);
-                }
-            }
-        });
+//        Future<Object> localFuture = asyncTransportExecutor.submit(new Callable<Object>() {
+//            @Override
+//            public Object call() throws Exception {
+//                gcr.wireDependencies(command);
+//                try {
+//                    return command.perform(null);
+//                } catch (Throwable t) {
+//                    throw new Exception(t);
+//                }
+//            }
+//        });
         if (!isCancelled) {
             SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationSiteName);
             xSiteTransferBySiteFutureTasks.put(siteCachePair, remoteFuture);
-            xSiteTransferBySiteLocalTasks.put(siteCachePair, localFuture);
+            //xSiteTransferBySiteLocalTasks.put(siteCachePair, localFuture);
         }
 
         // wait for the remote commands to finish
@@ -234,11 +235,11 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
         }
 
         // now wait for the local command
-        Response localResponse = (Response) localFuture.get(timeout, TimeUnit.MILLISECONDS);
-        if (!localResponse.isSuccessful()) {
-            throw new CacheException("Unsuccessful local response");
-        }
-        responseValues.put(transport.getAddress(), ((SuccessfulResponse) localResponse).getResponseValue());
+//        Response localResponse = (Response) localFuture.get(timeout, TimeUnit.MILLISECONDS);
+//        if (!localResponse.isSuccessful()) {
+//            throw new CacheException("Unsuccessful local response");
+//        }
+//        responseValues.put(transport.getAddress(), ((SuccessfulResponse) localResponse).getResponseValue());
 
         return responseValues;
     }

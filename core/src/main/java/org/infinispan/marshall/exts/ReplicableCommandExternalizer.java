@@ -44,7 +44,7 @@ import org.infinispan.marshall.AbstractExternalizer;
 import org.infinispan.marshall.Ids;
 import org.infinispan.topology.CacheTopologyControlCommand;
 import org.infinispan.util.Util;
-import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+
 
 import java.io.IOException;
 import java.io.ObjectInput;

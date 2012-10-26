@@ -60,6 +60,7 @@ import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.InternalEntryFactory;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContextContainer;
@@ -90,6 +91,7 @@ import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.BackupReceiverRepository;
 import org.infinispan.xsite.statetransfer.XSiteStateProvider;
 import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransactionInfo;
 import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import javax.transaction.xa.Xid;
@@ -134,6 +136,7 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private MapReduceManager mapReduceManager;
    private XSiteStateProvider xSiteStateProvider;
    private BackupReceiverRepository backupReceiverRepository;
+
 
    private Map<Byte, ModuleCommandInitializer> moduleCommandInitializers;
 
@@ -476,8 +479,13 @@ public class CommandsFactoryImpl implements CommandsFactory {
    }
 
     @Override
-    public XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, String cacheName, Address address, XSiteStateRequestCommand.Type type) {
+    public XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, Address address, XSiteStateRequestCommand.Type type) {
         return new XSiteStateRequestCommand(destinationSiteName, sourceSiteName, cacheName, address, type) ;
+    }
+
+    @Override
+    public XSiteTransferCommand buildXSiteTransferRequestCommand(XSiteTransferCommand.Type type, Address origin, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo) {
+        return new  XSiteTransferCommand (type, origin, cacheName, originSiteName, internalCacheEntries, transactionInfo);
     }
 
     @Override
