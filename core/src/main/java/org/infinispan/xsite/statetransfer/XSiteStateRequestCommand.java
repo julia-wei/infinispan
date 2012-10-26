@@ -71,7 +71,7 @@ public class XSiteStateRequestCommand extends BaseRpcCommand {
 
     }
 
-    @Inject
+    
     public void init(XSiteStateProvider xSiteStateProvider) {
         this.xSiteStateProvider = xSiteStateProvider;
     }
@@ -111,7 +111,7 @@ public class XSiteStateRequestCommand extends BaseRpcCommand {
 
     @Override
     public Object[] getParameters() {
-        return new Object[]{(byte) type.ordinal(), origin, cacheName,sourceSiteName, destinationSiteName};
+        return new Object[]{(byte) type.ordinal(), getOrigin(),sourceSiteName, destinationSiteName};
     }
 
 
