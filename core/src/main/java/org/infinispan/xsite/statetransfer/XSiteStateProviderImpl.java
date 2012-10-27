@@ -52,9 +52,7 @@ import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.XSiteBackup;
 
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.*;
 
 import static org.infinispan.factories.KnownComponentNames.ASYNC_TRANSPORT_EXECUTOR;
 
@@ -79,6 +77,7 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
     private int chunkSize;
     private long numOfKeysTransferred;
     private EmbeddedCacheManager embeddedCacheManager;
+    private ConcurrentMap<SiteCachePair, Long> keysTransferredMap = new ConcurrentHashMap<SiteCachePair, Long>();
 
 
 
@@ -141,6 +140,8 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
         //now send the state transfer complete command
         sendStateTransferCompleteCommand(destinationSiteName, sourceSiteName, cacheName, origin);
         long result =  numOfKeysTransferred;
+        SiteCachePair siteCachePair = new SiteCachePair(cacheName, sourceSiteName);
+        keysTransferredMap.put(siteCachePair, new Long(result)) ;
         return result;
     }
 
@@ -153,6 +154,13 @@ public class XSiteStateProviderImpl implements XSiteStateProvider {
                 log.tracef("State transfer to the site % for the cache % is not running", destinationSiteName, cacheName);
             }
         }
+    }
+
+    @Override
+    public Long getTransferredKeys(String destinationName, String cacheName) {
+        SiteCachePair siteCachePair = new SiteCachePair(cacheName, destinationName);
+        return keysTransferredMap.get(siteCachePair);
+
     }
 
     private List<XSiteTransactionInfo> translateToXSiteTransaction(List<TransactionInfo> transactionInfo) {

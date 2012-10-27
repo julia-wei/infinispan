@@ -67,5 +67,14 @@ public class CrossSiteReplicationOperations {
    public  void cancelStateTransfer(String siteName, String cacheName) throws Exception {
       xSiteStateTransferManager.cancelStateTransfer(siteName, cacheName);
    }
-
+   @Operation(displayName = "Get the keys transferred in the last cross site transfer to the given site")
+   @ManagedOperation(description = "Get the keys transferred to the remote site")
+   public Set<XSiteStateTransferResponseInfo> getTransferredKeys(String siteName) throws Exception {
+      return xSiteStateTransferManager.getKeysTransferred(siteName);
+   }
+    @Operation(displayName = "Get the keys transferred in the last cross site transfer to the given site from the given cache")
+   @ManagedOperation(description = "Get the keys transferred to the remote site for the given cache")
+   public Set<XSiteStateTransferResponseInfo> getTransferredKeys(String siteName, String cacheName) throws Exception {
+      return xSiteStateTransferManager.getKeysTransferred(siteName, cacheName);
+   }
 }

@@ -55,6 +55,7 @@ public class XSiteTransferCommand extends BaseRpcCommand {
         TRANSACTION_TRANSFERRED,
         STATE_TRANSFERRED,
         STATE_TRANSFER_COMPLETED
+
     }
 
     public XSiteTransferCommand(String cacheName) {

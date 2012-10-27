@@ -123,6 +123,51 @@ public class XSiteStateTransferManagerImpl implements XSiteStateTransferManager 
     }
 
     @Override
+    public Set<XSiteStateTransferResponseInfo> getKeysTransferred(String siteName) throws Exception {
+        Set<XSiteStateTransferResponseInfo> xSiteStateTransferResponseInfos = new HashSet<XSiteStateTransferResponseInfo>();
+        //Set<String> cacheNames = defaultCacheManager.getCacheNames();
+        Set<String> cacheNames = embeddedCacheManager.getCacheNames();
+
+        for (String cacheName : cacheNames) {
+            Set<XSiteStateTransferResponseInfo> responses = getKeysTransferred(siteName, cacheName);
+            if (responses != null) {
+                xSiteStateTransferResponseInfos.addAll(responses);
+            }
+        }
+        return xSiteStateTransferResponseInfos;
+    }
+
+    @Override
+    public Set<XSiteStateTransferResponseInfo> getKeysTransferred(String destinationSiteName, String cacheName) throws Exception {
+        bc = getBackupConfigurationForSite(destinationSiteName);
+        if (bc == null) {
+            if (trace) {
+                log.tracef("The current cache %s does not have any backup for the given site %s", cacheName, destinationSiteName);
+                throw new Exception("The site name you specified is not one of the backup sites for the current site");
+            }
+        }
+        Address sourceAddress = transport.getAddress();
+        XSiteStateRequestCommand xsiteStateRequestCommand = buildCommand(destinationSiteName, cacheName, sourceAddress, XSiteStateRequestCommand.Type.GET_KEYS_TRANSFERRED);
+        Map<Address, Response> responseMap= transport.invokeRemotely(null, xsiteStateRequestCommand,
+                ResponseMode.SYNCHRONOUS_IGNORE_LEAVERS, bc.replicationTimeout(), true, null);
+
+        Map<Address, Object> responseValues = new HashMap<Address, Object>(transport.getMembers().size());
+        for (Map.Entry<Address, Response> entry : responseMap.entrySet()) {
+            Address address = entry.getKey();
+            Response response = entry.getValue();
+            if (!response.isSuccessful()) {
+                Throwable cause = response instanceof ExceptionResponse ? ((ExceptionResponse) response).getException() : null;
+                throw new CacheException("Unsuccessful response received from node " + address + ": " + response, cause);
+            }
+            responseValues.put(address, ((SuccessfulResponse) response).getResponseValue());
+        }
+
+        Set<XSiteStateTransferResponseInfo> responses  = buildResponseInfo(responseValues, destinationSiteName, cacheName);
+        return responses;
+    }
+
+
+    @Override
     public Set<XSiteStateTransferResponseInfo> pushState(String destinationSiteName, String cacheName) throws Exception {
         bc = getBackupConfigurationForSite(destinationSiteName);
         if (bc == null) {

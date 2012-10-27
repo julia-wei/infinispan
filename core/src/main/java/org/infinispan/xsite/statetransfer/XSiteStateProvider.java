@@ -6,6 +6,7 @@ import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.TransactionInfo;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -15,4 +16,5 @@ public interface XSiteStateProvider {
     
     long startXSiteStateTransfer(String destinationSiteName, String sourceSiteName, String cacheName, Address origin) throws Exception;
     void cancelXSiteStateTransfer(String destinationSiteName, String cacheName) throws Exception;
+    Long getTransferredKeys(String destinationName, String cacheName);
 }

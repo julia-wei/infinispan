@@ -14,5 +14,9 @@ public interface XSiteStateTransferManager {
 
     void cancelStateTransfer(String siteName, String cacheName) throws Exception;
 
+    Set<XSiteStateTransferResponseInfo> getKeysTransferred(String siteName, String cacheName) throws Exception;
+
+    Set<XSiteStateTransferResponseInfo> getKeysTransferred(String siteName) throws Exception;
+
 
 }

@@ -42,7 +42,8 @@ public class XSiteStateRequestCommand extends BaseRpcCommand {
 
     public enum Type {
         START_XSITE_STATE_TRANSFER,
-        START_XSITE_STATE_CANCEL
+        START_XSITE_STATE_CANCEL,
+        GET_KEYS_TRANSFERRED
 
 
     }
@@ -87,7 +88,10 @@ public class XSiteStateRequestCommand extends BaseRpcCommand {
                     return SuccessfulResponse.create(responseValue);
                 case START_XSITE_STATE_CANCEL:
                     xSiteStateProvider.cancelXSiteStateTransfer(destinationSiteName, cacheName);
-                    
+                    return null;
+                 case GET_KEYS_TRANSFERRED:
+                    Long keysTransferred = xSiteStateProvider.getTransferredKeys(destinationSiteName, cacheName);
+                    return SuccessfulResponse.create(keysTransferred);
                 default:
                     throw new CacheException("Unknown state request command type: " + type);
             }
