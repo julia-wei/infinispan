@@ -258,7 +258,7 @@ public class StateProviderImpl implements StateProvider {
    }
 
    @Override
-   public void startOutboundTransfer(Address destination, int requestTopologyId, Set<Integer> segments)
+   public void  startOutboundTransfer(Address destination, int requestTopologyId, Set<Integer> segments)
          throws InterruptedException {
       if (trace) {
          log.tracef("Starting outbound transfer of segments %s to node %s with topology id %d", segments,

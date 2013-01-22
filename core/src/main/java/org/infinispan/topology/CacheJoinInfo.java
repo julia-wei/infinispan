@@ -36,7 +36,7 @@ import org.infinispan.marshall.Ids;
  * @author Dan Berindei
  * @since 5.2
  */
-public class CacheJoinInfo {
+public class  CacheJoinInfo {
    private final ConsistentHashFactory consistentHashFactory;
    private final Hash hashFunction;
    private final int numSegments;

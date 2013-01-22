@@ -19,9 +19,12 @@
 
 package org.infinispan.xsite;
 
+import org.infinispan.commands.remote.BaseRpcCommand;
+import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.factories.scopes.Scope;
 import org.infinispan.factories.scopes.Scopes;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferReceiver;
 import org.jgroups.protocols.relay.SiteAddress;
 
 /**
@@ -37,4 +40,10 @@ public interface BackupReceiverRepository {
     * Process an CacheRpcCommand received from a remote site.
     */
    public Object handleRemoteCommand(SingleRpcCommand cmd, SiteAddress src) throws Throwable;
+
+   public Object handleRemoteCommandForXSiteTransfer(BaseRpcCommand cmd, SiteAddress src) throws Throwable; 
+
+   public XSiteStateTransferReceiver getXSiteStateTransferReceiver(String remoteSiteName, String cacheName);
+
+  public void removeXSiteStateTransferReceiver(String remoteSiteName, String cacheName);
 }

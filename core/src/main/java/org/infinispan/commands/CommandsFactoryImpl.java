@@ -61,6 +61,7 @@ import org.infinispan.commands.write.WriteCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.DataContainer;
 import org.infinispan.container.InternalEntryFactory;
+import org.infinispan.container.entries.InternalCacheEntry;
 import org.infinispan.container.versioning.EntryVersion;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContextContainer;
@@ -91,6 +92,10 @@ import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 import org.infinispan.xsite.BackupSender;
 import org.infinispan.xsite.XSiteAdminCommand;
+import org.infinispan.xsite.statetransfer.XSiteStateProvider;
+import org.infinispan.xsite.statetransfer.XSiteStateRequestCommand;
+import org.infinispan.xsite.statetransfer.XSiteTransactionInfo;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 
 import javax.transaction.xa.Xid;
 import java.util.Collection;
@@ -133,6 +138,9 @@ public class CommandsFactoryImpl implements CommandsFactory {
    private LockManager lockManager;
    private InternalEntryFactory entryFactory;
    private MapReduceManager mapReduceManager;
+   private XSiteStateProvider xSiteStateProvider;
+   private BackupReceiverRepository backupReceiverRepository;
+
    private StateTransferManager stateTransferManager;
    private BackupSender backupSender;
    private CancellationService cancellationService;
@@ -146,7 +154,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
                                  @ComponentName(KnownComponentNames.MODULE_COMMAND_INITIALIZERS) Map<Byte, ModuleCommandInitializer> moduleCommandInitializers,
                                  RecoveryManager recoveryManager, StateProvider stateProvider, StateConsumer stateConsumer,
                                  LockManager lockManager, InternalEntryFactory entryFactory, MapReduceManager mapReduceManager, 
-                                 StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService) {
+                                 StateTransferManager stm, BackupSender backupSender, CancellationService cancellationService, 
+								 XSiteStateProvider xSiteStateProvider, BackupReceiverRepository backupReceiverRepository) {
       this.dataContainer = container;
       this.notifier = notifier;
       this.cache = cache;
@@ -162,6 +171,8 @@ public class CommandsFactoryImpl implements CommandsFactory {
       this.lockManager = lockManager;
       this.entryFactory = entryFactory;
       this.mapReduceManager = mapReduceManager;
+      this.xSiteStateProvider = xSiteStateProvider;
+      this.backupReceiverRepository = backupReceiverRepository;
       this.stateTransferManager = stm;
       this.backupSender = backupSender;
       this.cancellationService = cancellationService;
@@ -433,6 +444,14 @@ public class CommandsFactoryImpl implements CommandsFactory {
             DistributedExecuteCommand dec = (DistributedExecuteCommand)c;
             dec.init(cache);
             break;
+         case XSiteStateRequestCommand.COMMAND_ID:
+            XSiteStateRequestCommand xSiteStateRequestCommand = (XSiteStateRequestCommand)c;
+            xSiteStateRequestCommand.init(xSiteStateProvider);
+            break;
+          case XSiteTransferCommand.COMMAND_ID:
+            XSiteTransferCommand xSiteTransferCommand = (XSiteTransferCommand)c;
+            xSiteTransferCommand.init(backupReceiverRepository);
+            break;
          case GetInDoubtTxInfoCommand.COMMAND_ID:
             GetInDoubtTxInfoCommand gidTxInfoCommand = (GetInDoubtTxInfoCommand)c;
             gidTxInfoCommand.init(recoveryManager);
@@ -485,7 +504,17 @@ public class CommandsFactoryImpl implements CommandsFactory {
       return new StateRequestCommand(cacheName, subtype, sender, viewId, segments);
    }
 
-   @Override
+    @Override
+    public XSiteStateRequestCommand buildXSiteStateRequestCommand(String destinationSiteName, String sourceSiteName, Address address, XSiteStateRequestCommand.Type type) {
+        return new XSiteStateRequestCommand(destinationSiteName, sourceSiteName, cacheName, address, type) ;
+    }
+
+    @Override
+    public XSiteTransferCommand buildXSiteTransferRequestCommand(XSiteTransferCommand.Type type, Address origin, String originSiteName, List<InternalCacheEntry> internalCacheEntries, List<XSiteTransactionInfo> transactionInfo) {
+        return new  XSiteTransferCommand (type, origin, cacheName, originSiteName, internalCacheEntries, transactionInfo);
+    }
+
+    @Override
    public StateResponseCommand buildStateResponseCommand(Address sender, int viewId, Collection<StateChunk> stateChunks) {
       return new StateResponseCommand(cacheName, sender, viewId, stateChunks);
    }

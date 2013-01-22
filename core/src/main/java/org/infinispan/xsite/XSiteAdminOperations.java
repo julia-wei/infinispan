@@ -29,12 +29,15 @@ import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferManager;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferResponseInfo;
 import org.rhq.helpers.pluginAnnotations.agent.Operation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Managed bean exposing sys admin operations for Cross-Site replication functionality.
@@ -55,13 +58,15 @@ public class XSiteAdminOperations {
    private Cache cache;
 
    private volatile BackupSender backupSender;
+   private volatile XSiteStateTransferManager xSiteStateTransferManager;
 
    @Inject
-   public void init(RpcManager rpcManager, BackupSender backupSender, Cache cache) {
+   public void init(RpcManager rpcManager, BackupSender backupSender, Cache cache, XSiteStateTransferManager xSiteStateTransferManager) {
       this.backupSender = backupSender;
       this.rpcManager = rpcManager;
       this.backupSender = backupSender;
-      this.cache = cache;
+      this.cache = cache;      
+      this.xSiteStateTransferManager = xSiteStateTransferManager;
    }
 
    @Operation(displayName = "Check whether the given backup site is offline or not.")
@@ -235,6 +240,34 @@ public class XSiteAdminOperations {
       return returnFailureOrSuccess(failed, "Could not take the site online on nodes:");
    }
 
+   @Operation(displayName = "Push the transactions and state of this site caches to the target site")
+   @ManagedOperation(description = "Transfer the state of this site to the target site")
+   public Set<XSiteStateTransferResponseInfo> pushState(String siteName) throws Exception {
+      return xSiteStateTransferManager.pushState(siteName);
+   }
+
+   @Operation(displayName = "Push the transactions and state of this site cache to the target site")
+   @ManagedOperation(description = "Transfer the state of this site cache to the target site")
+   public  Set<XSiteStateTransferResponseInfo> pushState(String siteName, String cacheName) throws Exception {
+      return xSiteStateTransferManager.pushState(siteName, cacheName);
+   }
+
+   @Operation(displayName = "Cancel the state transfer to the specified site and the cache")
+   @ManagedOperation(description = "Cancel state transfer to the specified site and cache")
+   public  void cancelStateTransfer(String siteName, String cacheName) throws Exception {
+      xSiteStateTransferManager.cancelStateTransfer(siteName, cacheName);
+   }
+   @Operation(displayName = "Get the keys transferred in the last cross site transfer to the given site")
+   @ManagedOperation(description = "Get the keys transferred to the remote site")
+   public Set<XSiteStateTransferResponseInfo> getTransferredKeys(String siteName) throws Exception {
+      return xSiteStateTransferManager.getKeysTransferred(siteName);
+   }
+    @Operation(displayName = "Get the keys transferred in the last cross site transfer to the given site from the given cache")
+   @ManagedOperation(description = "Get the keys transferred to the remote site for the given cache")
+   public Set<XSiteStateTransferResponseInfo> getTransferredKeys(String siteName, String cacheName) throws Exception {
+      return xSiteStateTransferManager.getKeysTransferred(siteName, cacheName);
+   }
+   
    private List<Address> checkForErrors(Map<Address, Response> responses) {
       List<Address> failed = new ArrayList<Address>(responses.size());
       for (Map.Entry<Address, Response> e : responses.entrySet()) {

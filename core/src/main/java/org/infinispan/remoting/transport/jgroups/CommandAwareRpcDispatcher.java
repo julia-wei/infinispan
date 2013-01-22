@@ -25,6 +25,7 @@ package org.infinispan.remoting.transport.jgroups;
 import net.jcip.annotations.GuardedBy;
 import org.infinispan.CacheException;
 import org.infinispan.commands.ReplicableCommand;
+import org.infinispan.commands.remote.BaseRpcCommand;
 import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.factories.GlobalComponentRegistry;
@@ -233,10 +234,22 @@ public class CommandAwareRpcDispatcher extends RpcDispatcher {
    }
 
    private Object executeCommandFromRemoteSite(ReplicableCommand cmd, SiteAddress src) throws Throwable {
-      if (! (cmd instanceof SingleRpcCommand)) {
+       boolean singleRpcCommand = false;
+       boolean cacheRpcCommand = false;
+        if ((cmd instanceof SingleRpcCommand)) {
+            singleRpcCommand = true;
+        }
+        if ((cmd instanceof CacheRpcCommand)) {
+            cacheRpcCommand = true;
+        }
+
+       if (! (singleRpcCommand || cacheRpcCommand)) {
          throw new IllegalStateException("Only CacheRpcCommand commands expected as a result of xsite calls but got " + cmd.getClass().getName());
       }
-      return backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src);
+      if(singleRpcCommand){
+          return backupReceiverRepository.handleRemoteCommand((SingleRpcCommand) cmd, src);
+      }
+      return backupReceiverRepository.handleRemoteCommandForXSiteTransfer((BaseRpcCommand) cmd, src);
    }
 
    private Object executeCommandFromLocalCluster(ReplicableCommand cmd, Message req) throws Throwable {

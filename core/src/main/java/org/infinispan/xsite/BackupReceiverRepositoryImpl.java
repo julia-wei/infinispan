@@ -21,12 +21,17 @@ package org.infinispan.xsite;
 
 import org.infinispan.Cache;
 import org.infinispan.commands.VisitableCommand;
+import org.infinispan.commands.remote.BaseRpcCommand;
+import org.infinispan.commands.remote.CacheRpcCommand;
 import org.infinispan.commands.remote.SingleRpcCommand;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferReceiver;
+import org.infinispan.xsite.statetransfer.XSiteStateTransferReceiverImpl;
+import org.infinispan.xsite.statetransfer.XSiteTransferCommand;
 import org.jgroups.protocols.relay.SiteAddress;
 import org.jgroups.protocols.relay.SiteUUID;
 
@@ -45,6 +50,9 @@ public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
    public static final ConcurrentMap<SiteCachePair, BackupReceiver> backupReceivers =
          new ConcurrentHashMap<SiteCachePair, BackupReceiver>();
 
+   public static final ConcurrentMap<SiteCachePair, XSiteStateTransferReceiver> xSiteStateTransferReceivers =
+     new ConcurrentHashMap<SiteCachePair, XSiteStateTransferReceiver>();
+
    public EmbeddedCacheManager cacheManager;
 
    @Inject
@@ -60,7 +68,38 @@ public class BackupReceiverRepositoryImpl implements BackupReceiverRepository {
       return localBackupCache.handleRemoteCommand((VisitableCommand)cmd.getCommand());
    }
 
-   /**
+    @Override
+    public Object handleRemoteCommandForXSiteTransfer(BaseRpcCommand cmd, SiteAddress src) throws Throwable {
+      log.tracef("Handling command %s from remote site %s", cmd, src);
+      String name = cmd.getCacheName();
+       ((XSiteTransferCommand)cmd).init(this);
+      //BackupReceiver localBackupCache = getBackupCacheManager(SiteUUID.getSiteName(src.getSite()), name);
+      return cmd.perform(null) ;
+    }
+
+
+    @Override
+    public XSiteStateTransferReceiver getXSiteStateTransferReceiver(String remoteSiteName, String cacheName) {
+        SiteCachePair toLookFor = new SiteCachePair(cacheName, remoteSiteName);
+        XSiteStateTransferReceiver xSiteStateTransferReceiver = xSiteStateTransferReceivers.get(toLookFor);
+        if (xSiteStateTransferReceiver != null) {
+            return xSiteStateTransferReceiver;
+        }
+
+        BackupReceiver getBackupCacheManager = getBackupCacheManager(remoteSiteName, cacheName);
+        xSiteStateTransferReceiver = new XSiteStateTransferReceiverImpl(getBackupCacheManager);
+        xSiteStateTransferReceivers.put(toLookFor, xSiteStateTransferReceiver);
+
+        return xSiteStateTransferReceivers.get(toLookFor);
+    }
+
+    @Override
+    public void removeXSiteStateTransferReceiver(String remoteSiteName, String cacheName) {
+         SiteCachePair toLookFor = new SiteCachePair(cacheName, remoteSiteName);
+         xSiteStateTransferReceivers.remove(toLookFor);
+    }
+
+    /**
     * Returns the local cache associated defined as backup for the provided remote (site, cache) combo, or throws an
     * exception of no such site is defined.
     * <p/>
