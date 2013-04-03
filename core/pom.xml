@@ -29,7 +29,7 @@
    <parent>
       <groupId>org.infinispan</groupId>
       <artifactId>infinispan-parent</artifactId>
-      <version>5.2.6-SNAPSHOT</version>
+      <version>5.2.0-BNI</version>
       <relativePath>../parent/pom.xml</relativePath>
    </parent>
 
@@ -121,6 +121,29 @@
    </dependencies>
 
    <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>1.4</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <relocations>
+                <relocation>
+                  <pattern>org.jboss.logging</pattern>
+                  <shadedPattern>org.shaded.logging</shadedPattern>
+                </relocation>
+              </relocations>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>   
       <pluginManagement>
          <plugins>
             <plugin>

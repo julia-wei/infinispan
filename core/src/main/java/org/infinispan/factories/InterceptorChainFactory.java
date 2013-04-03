@@ -48,6 +48,8 @@ import org.infinispan.statetransfer.StateTransferInterceptor;
 import org.infinispan.statetransfer.TransactionSynchronizerInterceptor;
 import org.infinispan.transaction.LockingMode;
 import org.infinispan.transaction.TransactionMode;
+import org.infinispan.util.concurrent.IsolationLevel;
+import org.infinispan.util.Util;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -66,6 +68,23 @@ public class InterceptorChainFactory extends AbstractNamedCacheComponentFactory 
 
    private static final Log log = LogFactory.getLog(InterceptorChainFactory.class);
 
+   /**
+    * BNI-specific for registering legacy interceptors.
+    * @param clazz
+    * @return
+    */
+   public CommandInterceptor createInterceptor(Class<? extends CommandInterceptor> clazz) {
+      CommandInterceptor chainedInterceptor = componentRegistry.getComponent(clazz);
+      if (chainedInterceptor == null) {
+         chainedInterceptor = Util.getInstance(clazz);
+         register(clazz, chainedInterceptor);
+      } else {
+         // wipe next/last chaining!!
+         chainedInterceptor.setNext(null);
+      }
+      return chainedInterceptor;
+   }
+   
    private CommandInterceptor createInterceptor(CommandInterceptor interceptor, Class<? extends CommandInterceptor> interceptorType) {
       CommandInterceptor chainedInterceptor = componentRegistry.getComponent(interceptorType);
       if (chainedInterceptor == null) {
